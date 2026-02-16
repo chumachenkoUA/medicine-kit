@@ -1,0 +1,49 @@
+// ✅ ПРАВИЛЬНО
+generator client {
+  provider = "prisma-client-js"  // <--- Тільки так!
+  output   = "../generated/prisma/client"
+  previewFeatures = ["driverAdapters"] // Це треба для вашого prisma.ts
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model tabletos {
+  Id          BigInt    @id @default(autoincrement())
+  Name        String    @db.VarChar(2044)
+  Description String?   @db.VarChar(2044)
+  Effects     String?   @db.VarChar(2044)
+  Format      String    @db.VarChar(2044)
+  Link        String    @db.VarChar(2044)
+  Photo       String?   @db.VarChar(2044)
+  Quantity    Int
+  Rate        Int?      @db.SmallInt
+  
+  courses     courses[] 
+}
+
+model users {
+  Id       BigInt    @id @default(autoincrement())
+  Email    String    @unique @db.VarChar(2044)
+  Name     String    @db.VarChar(2044)
+  password String    @db.VarChar(2044)
+  surname  String    @db.VarChar(2044)
+  Username String    @db.VarChar(2044)
+  
+  courses  courses[] 
+}
+
+model courses {
+  Id             BigInt @id @default(autoincrement())
+  Name_doctor    String @db.VarChar(2044)
+  period_courses Int    @db.SmallInt
+  Quantity_day   Int    @db.SmallInt
+  Quantity_week  Int    @db.SmallInt
+
+  users_id    BigInt
+  tabletos_id BigInt
+
+  users    users    @relation(fields: [users_id], references: [Id], onDelete: Cascade, map: "fk_users")
+  tabletos tabletos @relation(fields: [tabletos_id], references: [Id], onDelete: Cascade, map: "fk_tabletos")
+}
