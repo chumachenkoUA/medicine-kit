@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Loader2, Plus, Search, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   createMedicine,
@@ -107,9 +108,10 @@ export function CreateMedicineFlow() {
       const result = await searchMedicines(query)
       setSearchResults(result)
     } catch (error) {
-      setSearchError(
+      const message =
         error instanceof Error ? error.message : "Не вдалося виконати пошук."
-      )
+      setSearchError(message)
+      toast.error(message)
     } finally {
       setSearchLoading(false)
     }
@@ -133,9 +135,10 @@ export function CreateMedicineFlow() {
         sourceUrl: preview.sourceUrl ?? url,
       }))
     } catch (error) {
-      setPreviewError(
+      const message =
         error instanceof Error ? error.message : "Не вдалося отримати попередні дані."
-      )
+      setPreviewError(message)
+      toast.error(message)
     } finally {
       setPreviewLoading(false)
     }
@@ -165,11 +168,14 @@ export function CreateMedicineFlow() {
       }
 
       const created = await createMedicine(payload)
-      setSubmitSuccess(`Ліки створено. ID: ${created.id}`)
+      const message = `Ліки створено. ID: ${created.id}`
+      setSubmitSuccess(message)
+      toast.success(message)
     } catch (error) {
-      setSubmitError(
+      const message =
         error instanceof Error ? error.message : "Не вдалося створити ліки."
-      )
+      setSubmitError(message)
+      toast.error(message)
     } finally {
       setSubmitLoading(false)
     }

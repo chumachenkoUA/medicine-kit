@@ -19,41 +19,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { MedicineBentoGrid } from "@/components/dashboard/medicine-bento-grid"
+import { doseStatusClassMap, isExpiringSoon, isLowStock } from "@/lib/medicine"
 import { getMedicines, getUpcomingDoses } from "@/services/medicine.service"
 import type { MedicineDashboardItem, UpcomingDose } from "@/types/medicine"
-
-const statusClassMap: Record<UpcomingDose["status"], string> = {
-  now: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  soon: "border-amber-200 bg-amber-50 text-amber-800",
-  scheduled: "border-border bg-muted text-muted-foreground",
-  missed: "border-red-200 bg-red-50 text-red-700",
-}
 
 const statusIconMap: Record<UpcomingDose["status"], typeof Clock3> = {
   now: CircleCheck,
   soon: CalendarClock,
   scheduled: Clock3,
   missed: AlertTriangle,
-}
-
-function getStockPercent(item: MedicineDashboardItem) {
-  return Math.max(
-    0,
-    Math.min(100, Math.round((item.stockCount / item.stockCapacity) * 100))
-  )
-}
-
-function isLowStock(item: MedicineDashboardItem) {
-  return item.stockCount <= 10 || getStockPercent(item) <= 25
-}
-
-function isExpiringSoon(item: MedicineDashboardItem) {
-  if (!item.nearestExpiryAt) return false
-
-  const threshold = new Date()
-  threshold.setMonth(threshold.getMonth() + 3)
-
-  return new Date(item.nearestExpiryAt) < threshold
 }
 
 export default async function DashboardPage() {
@@ -73,7 +47,7 @@ export default async function DashboardPage() {
   return (
     <div className="grid gap-6 md:gap-7">
       <section
-        className="dashboard-reveal space-y-4 rounded-3xl border bg-card/70 p-4 md:p-5"
+        className="dashboard-reveal space-y-4 rounded-3xl border border-border/70 bg-card/80 p-4 md:p-5 dark:bg-card/95"
         style={{ animationDelay: "0ms" }}
       >
         <div className="flex items-center justify-between gap-3">
@@ -99,13 +73,13 @@ export default async function DashboardPage() {
               return (
                 <Card
                   key={item.id}
-                  className="border-border/80 bg-background/90 shadow-sm transition-shadow hover:shadow-md"
+                  className="border-border/70 bg-background/95 shadow-sm transition-shadow hover:shadow-md dark:bg-card/90 dark:hover:shadow-black/20"
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between gap-3 text-base">
                       <span className="line-clamp-1">{item.medicineName}</span>
                       <Badge
-                        className={`gap-1.5 border px-2.5 py-1 ${statusClassMap[item.status]}`}
+                        className={`gap-1.5 border px-2.5 py-1 ${doseStatusClassMap[item.status]}`}
                       >
                         <StatusIcon className="size-3.5" />
                         {item.statusLabel}
@@ -136,26 +110,32 @@ export default async function DashboardPage() {
           <h2 className="text-xl font-semibold">Усі ліки в аптечці</h2>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">Активні: {medicines.length}</Badge>
-            <Badge variant="outline" className="border-amber-300 text-amber-800">
+            <Badge
+              variant="outline"
+              className="border-amber-300 text-amber-800 dark:border-amber-500/40 dark:text-amber-200"
+            >
               Закінчуються: {lowStockCount}
             </Badge>
-            <Badge variant="outline" className="border-orange-300 text-orange-800">
+            <Badge
+              variant="outline"
+              className="border-orange-300 text-orange-800 dark:border-orange-500/40 dark:text-orange-200"
+            >
               Скоро термін: {expiringSoonCount}
             </Badge>
           </div>
         </div>
 
-        <Card className="sticky top-20 z-20 border-border/80 bg-background/90 shadow-sm backdrop-blur-sm">
+        <Card className="sticky top-20 z-20 border-border/70 bg-background/95 shadow-sm backdrop-blur-md dark:bg-card/95">
           <CardContent className="flex flex-col gap-3 p-3 md:flex-row md:items-center">
             <div className="relative w-full md:max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Пошук ліків..."
-                className="border-border/80 bg-card pl-9"
+                className="border-border/70 bg-card pl-9 dark:bg-input/40"
               />
             </div>
             <Select defaultValue="name">
-              <SelectTrigger className="w-full border-border/80 bg-card md:w-52">
+              <SelectTrigger className="w-full border-border/70 bg-card md:w-52 dark:bg-input/40">
                 <SelectValue placeholder="Сортування" />
               </SelectTrigger>
               <SelectContent>
