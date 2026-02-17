@@ -228,3 +228,7 @@ export async function getMedicineCoursesById(
     .filter((course) => course.medicineId === id)
     .map((course) => ({ ...course, times: [...course.times] }))
 }
+
+export async function getMedicineCourses(): Promise<MedicineCourse[]> {
+  return mockCourses.map((course) => ({ ...course, times: [...course.times] }))
+}
