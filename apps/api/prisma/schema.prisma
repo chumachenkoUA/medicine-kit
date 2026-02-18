@@ -20,23 +20,25 @@ model tabletos {
   Rate        Int?      @db.SmallInt
   
   courses     courses[] 
+  tabletos_user  tabletos_user[]
 }
 
 model users {
   Id       BigInt    @id @default(autoincrement())
   Email    String    @unique @db.VarChar(2044)
   Name     String    @db.VarChar(2044)
-  password String    @db.VarChar(2044)
-  surname  String    @db.VarChar(2044)
+  Password String    @db.VarChar(2044)
+  Surname  String    @db.VarChar(2044)
   Username String    @db.VarChar(2044)
   
-  courses  courses[] 
+  courses  courses[]
+  tabletos_user  tabletos_user[] 
 }
 
 model courses {
   Id             BigInt @id @default(autoincrement())
   Name_doctor    String @db.VarChar(2044)
-  period_courses Int    @db.SmallInt
+  Period_courses Int    @db.SmallInt
   Quantity_day   Int    @db.SmallInt
   Quantity_week  Int    @db.SmallInt
 
@@ -46,3 +48,15 @@ model courses {
   users    users    @relation(fields: [users_id], references: [Id], onDelete: Cascade, map: "fk_users")
   tabletos tabletos @relation(fields: [tabletos_id], references: [Id], onDelete: Cascade, map: "fk_tabletos")
 }
+
+model tabletos_user{
+  Id              BigInt @id @default(autoincrement())
+  tabletos_id     BigInt
+  Count           Int
+  Expiration_date DateTime @db.Date
+  Create_date     DateTime @db.Date
+  users_id        BigInt
+
+  users    users    @relation(fields: [users_id], references: [Id], onDelete: Cascade, map: "fk_users")
+  tabletos tabletos @relation(fields: [tabletos_id], references: [Id], onDelete: Cascade, map: "fk_tabletos")
+  }
