@@ -17,7 +17,7 @@ import { formatDate, formatDateRange } from "@/lib/date"
 import {
   getMedicineById,
   getMedicineCoursesById,
-} from "@/services/medicine.service"
+} from "@/lib/client-api/medicines"
 import type { MedicineId } from "@/types/medicine"
 
 interface MedicineDetailsPageProps {

@@ -3,7 +3,7 @@ import Link from "next/link"
 import { MedicinesList } from "@/components/medicines/medicines-list"
 import { PageShell } from "@/components/dashboard/page-shell"
 import { Button } from "@/components/ui/button"
-import { getMedicines } from "@/services/medicine.service"
+import { getMedicines } from "@/lib/client-api/medicines"
 
 export default async function MedicinesPage() {
   const medicines = await getMedicines()

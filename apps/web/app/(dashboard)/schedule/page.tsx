@@ -7,7 +7,7 @@ import {
   getMedicineCourses,
   getMedicines,
   getUpcomingDoses,
-} from "@/services/medicine.service"
+} from "@/lib/client-api/medicines"
 
 export default async function SchedulePage() {
   const [upcomingDoses, courses, medicines] = await Promise.all([

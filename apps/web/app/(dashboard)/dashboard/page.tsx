@@ -3,24 +3,14 @@ import {
   CalendarClock,
   CircleCheck,
   Clock3,
-  Search,
-  SlidersHorizontal,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { MedicineBentoGrid } from "@/components/dashboard/medicine-bento-grid"
 import { doseStatusClassMap, isExpiringSoon, isLowStock } from "@/lib/medicine"
-import { getMedicines, getUpcomingDoses } from "@/services/medicine.service"
+import { getMedicines, getUpcomingDoses } from "@/lib/client-api/medicines"
 import type { MedicineDashboardItem, UpcomingDose } from "@/types/medicine"
 
 const statusIconMap: Record<UpcomingDose["status"], typeof Clock3> = {
@@ -124,35 +114,6 @@ export default async function DashboardPage() {
             </Badge>
           </div>
         </div>
-
-        <Card className="sticky top-20 z-20 border-border/70 bg-background/95 shadow-sm backdrop-blur-md dark:bg-card/95">
-          <CardContent className="flex flex-col gap-3 p-3 md:flex-row md:items-center">
-            <div className="relative w-full md:max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Пошук ліків..."
-                className="border-border/70 bg-card pl-9 dark:bg-input/40"
-              />
-            </div>
-            <Select defaultValue="name">
-              <SelectTrigger className="w-full border-border/70 bg-card md:w-52 dark:bg-input/40">
-                <SelectValue placeholder="Сортування" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">За назвою</SelectItem>
-                <SelectItem value="time">За часом</SelectItem>
-                <SelectItem value="stock">За залишком</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" className="gap-2 border-border/80 md:ml-auto">
-              <SlidersHorizontal className="size-4" />
-              Фільтри
-              <Badge variant="secondary" className="ml-1 rounded-full px-1.5 py-0 text-[10px]">
-                0
-              </Badge>
-            </Button>
-          </CardContent>
-        </Card>
 
         {medicinesError ? (
           <Card className="border-destructive/40">

@@ -1,12 +1,12 @@
 "use client"
 
-import { Pill } from "lucide-react"
+import { LogOut, Pill } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
 import { ModeToggle } from "@/components/mode-toggle"
+import { logoutAction } from "@/app/(auth)/actions"
 
 const navItems = [
   { href: "/dashboard", label: "Дашборд" },
@@ -45,8 +45,13 @@ export function DashboardHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <Input placeholder="Пошук ліків..." className="hidden w-44 md:block md:w-64" />
           <ModeToggle />
+          <form action={logoutAction}>
+            <Button type="submit" variant="outline" size="sm" className="gap-1.5">
+              <LogOut className="size-4" />
+              Вийти
+            </Button>
+          </form>
           <Link href="/profile">
             <Avatar className="size-9">
               <AvatarFallback>MK</AvatarFallback>
