@@ -6,8 +6,9 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { loginAction, type AuthFormState } from "@/app/(auth)/actions"
+import { AuthCardHeader } from "@/components/auth/auth-card-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -48,13 +49,11 @@ export function LoginForm() {
   }
 
   return (
-    <Card>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Вхід</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Увійди в акаунт, щоб відкрити дашборд і курси прийому.
-        </p>
-      </CardHeader>
+    <Card className="border-border/70 bg-card/95 shadow-sm dark:bg-card">
+      <AuthCardHeader
+        title="Вхід"
+        description="Увійди в акаунт, щоб відкрити дашборд і курси прийому."
+      />
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
@@ -87,8 +86,8 @@ export function LoginForm() {
             ) : null}
           </div>
 
-          {state.success ? (
-            <p className="text-sm text-emerald-600">Дані валідні. Можна робити авторизацію в API.</p>
+          {state.formError ? (
+            <p className="text-sm text-destructive">{state.formError}</p>
           ) : null}
 
           <Button type="submit" className="w-full" disabled={isPending}>

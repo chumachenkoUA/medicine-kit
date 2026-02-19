@@ -2,43 +2,27 @@
 
 import { useMemo, useState } from "react"
 import { Loader2, Plus, Search, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   createMedicine,
   previewMedicineFromUrl,
   searchMedicines,
-  type CreateMedicinePayload,
   type SearchMedicineResult,
-} from "@/lib/api/medicines"
+} from "@/lib/client-api/medicines"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-
-interface PackageForm {
-  tabletsInPack: string
-  expiresAt: string
-  batchNumber: string
-}
-
-interface FormState {
-  name: string
-  description: string
-  form: string
-  imageUrl: string
-  sourceUrl: string
-  packages: PackageForm[]
-}
-
-const EMPTY_FORM: FormState = {
-  name: "",
-  description: "",
-  form: "",
-  imageUrl: "",
-  sourceUrl: "",
-  packages: [{ tabletsInPack: "", expiresAt: "", batchNumber: "" }],
-}
+import {
+  canSubmitCreateMedicineForm,
+  EMPTY_CREATE_MEDICINE_FORM,
+  EMPTY_PACKAGE,
+  toCreateMedicinePayload,
+  type CreateMedicineFormState,
+  type PackageForm,
+} from "@/lib/medicines/create-form"
 
 export function CreateMedicineFlow() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -50,23 +34,19 @@ export function CreateMedicineFlow() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
 
-  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [form, setForm] = useState<CreateMedicineFormState>(
+    EMPTY_CREATE_MEDICINE_FORM
+  )
   const [submitLoading, setSubmitLoading] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
 
-  const canSubmit = useMemo(
-    () =>
-      form.name.trim() &&
-      form.form.trim() &&
-      form.packages.some(
-        (pack) => pack.tabletsInPack.trim() && pack.expiresAt.trim()
-      ),
-    [form]
-  )
+  const canSubmit = useMemo(() => canSubmitCreateMedicineForm(form), [form])
 
-  const updateField = (field: keyof Omit<FormState, "packages">, value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }))
+  const updateField = (
+    field: keyof Omit<CreateMedicineFormState, "packages">,
+    value: string
+  ) => setForm((prev) => ({ ...prev, [field]: value }))
 
   const updatePackage = (
     index: number,
@@ -84,7 +64,7 @@ export function CreateMedicineFlow() {
   const addPackage = () => {
     setForm((prev) => ({
       ...prev,
-      packages: [...prev.packages, { tabletsInPack: "", expiresAt: "", batchNumber: "" }],
+      packages: [...prev.packages, { ...EMPTY_PACKAGE }],
     }))
   }
 
@@ -107,9 +87,10 @@ export function CreateMedicineFlow() {
       const result = await searchMedicines(query)
       setSearchResults(result)
     } catch (error) {
-      setSearchError(
+      const message =
         error instanceof Error ? error.message : "Не вдалося виконати пошук."
-      )
+      setSearchError(message)
+      toast.error(message)
     } finally {
       setSearchLoading(false)
     }
@@ -133,9 +114,10 @@ export function CreateMedicineFlow() {
         sourceUrl: preview.sourceUrl ?? url,
       }))
     } catch (error) {
-      setPreviewError(
+      const message =
         error instanceof Error ? error.message : "Не вдалося отримати попередні дані."
-      )
+      setPreviewError(message)
+      toast.error(message)
     } finally {
       setPreviewLoading(false)
     }
@@ -149,27 +131,16 @@ export function CreateMedicineFlow() {
     setSubmitSuccess(null)
 
     try {
-      const payload: CreateMedicinePayload = {
-        name: form.name.trim(),
-        description: form.description.trim(),
-        form: form.form.trim(),
-        imageUrl: form.imageUrl.trim() || undefined,
-        sourceUrl: form.sourceUrl.trim() || undefined,
-        packages: form.packages
-          .filter((pack) => pack.tabletsInPack.trim() && pack.expiresAt.trim())
-          .map((pack) => ({
-            tabletsInPack: Number(pack.tabletsInPack),
-            expiresAt: pack.expiresAt,
-            batchNumber: pack.batchNumber.trim() || undefined,
-          })),
-      }
-
+      const payload = toCreateMedicinePayload(form)
       const created = await createMedicine(payload)
-      setSubmitSuccess(`Ліки створено. ID: ${created.id}`)
+      const message = `Ліки створено. ID: ${created.id}`
+      setSubmitSuccess(message)
+      toast.success(message)
     } catch (error) {
-      setSubmitError(
+      const message =
         error instanceof Error ? error.message : "Не вдалося створити ліки."
-      )
+      setSubmitError(message)
+      toast.error(message)
     } finally {
       setSubmitLoading(false)
     }

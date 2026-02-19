@@ -1,10 +1,13 @@
 import Link from "next/link"
 
-import { PagePlaceholder } from "@/components/dashboard/page-placeholder"
+import { MedicinesList } from "@/components/medicines/medicines-list"
 import { PageShell } from "@/components/dashboard/page-shell"
 import { Button } from "@/components/ui/button"
+import { getMedicines } from "@/lib/client-api/medicines"
 
-export default function MedicinesPage() {
+export default async function MedicinesPage() {
+  const medicines = await getMedicines()
+
   return (
     <PageShell
       title="Усі ліки"
@@ -15,7 +18,7 @@ export default function MedicinesPage() {
         </Button>
       }
     >
-      <PagePlaceholder description="Тут буде повний список ліків із фільтрами, сортуванням та швидким редагуванням." />
+      <MedicinesList medicines={medicines} />
     </PageShell>
   )
 }

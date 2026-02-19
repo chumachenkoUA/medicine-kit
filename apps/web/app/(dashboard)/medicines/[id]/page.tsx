@@ -17,17 +17,17 @@ import { formatDate, formatDateRange } from "@/lib/date"
 import {
   getMedicineById,
   getMedicineCoursesById,
-} from "@/services/medicine.service"
+} from "@/lib/client-api/medicines"
 import type { MedicineId } from "@/types/medicine"
 
 interface MedicineDetailsPageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default async function MedicineDetailsPage({
   params,
 }: MedicineDetailsPageProps) {
-  const { id } = await params
+  const { id } = params
   const [medicine, courses] = await Promise.all([
     getMedicineById(id as MedicineId),
     getMedicineCoursesById(id as MedicineId),

@@ -6,8 +6,9 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { registerAction, type AuthFormState } from "@/app/(auth)/actions"
+import { AuthCardHeader } from "@/components/auth/auth-card-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -57,13 +58,11 @@ export function RegisterForm() {
   }
 
   return (
-    <Card>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Реєстрація</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Створи акаунт, щоб зберігати ліки та курси прийому.
-        </p>
-      </CardHeader>
+    <Card className="border-border/70 bg-card/95 shadow-sm dark:bg-card">
+      <AuthCardHeader
+        title="Реєстрація"
+        description="Створи акаунт, щоб зберігати ліки та курси прийому."
+      />
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -142,8 +141,14 @@ export function RegisterForm() {
             ) : null}
           </div>
 
+          {state.formError ? (
+            <p className="text-sm text-destructive">{state.formError}</p>
+          ) : null}
+
           {state.success ? (
-            <p className="text-sm text-emerald-600">Дані валідні. Можна створювати користувача в API.</p>
+            <p className="text-sm text-emerald-600">
+              Акаунт створено. Тепер увійди у систему.
+            </p>
           ) : null}
 
           <Button type="submit" className="w-full" disabled={isPending}>
