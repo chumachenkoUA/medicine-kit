@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useEffect } from "react"
+import { startTransition, useActionState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -45,7 +45,9 @@ export function LoginForm() {
     const formData = new FormData()
     formData.set("email", values.email)
     formData.set("password", values.password)
-    formAction(formData)
+    startTransition(() => {
+      formAction(formData)
+    })
   }
 
   return (
