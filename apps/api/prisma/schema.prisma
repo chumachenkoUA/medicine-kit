@@ -41,6 +41,7 @@ model courses {
   Period_courses Int    @db.SmallInt
   Quantity_day   Int    @db.SmallInt
   Quantity_week  Int    @db.SmallInt
+  Description   String? @db.VarChar(2044)
 
   users_id    BigInt
   tabletos_id BigInt
