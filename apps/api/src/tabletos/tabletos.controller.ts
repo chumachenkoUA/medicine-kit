@@ -19,7 +19,7 @@ export class TabletosController {
   findAll() {
     return this.tabletosService.findAll();
   }
-
+  
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.tabletosService.findOne(+id);
