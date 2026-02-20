@@ -2,9 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { prisma } from '../lib/prisma';
 import { CreateTabletoDto } from './dto/create-tableto.dto';
 import { UpdateTabletoDto } from './dto/update-tableto.dto';
+import { ParserService } from '../lib/parser/parser.services';
 
 @Injectable()
 export class TabletosService {
+  constructor(private readonly parserService: ParserService) {}
+
+  async parseLinkForForm(url: string) {
+    return await this.parserService.parsePage(url);
+  }
+
   async create(createTabletoDto: CreateTabletoDto) {
     return await prisma.tabletos.create({
       data: {
@@ -31,14 +38,14 @@ export class TabletosService {
   }
 
   async update(id: number, updateTabletoDto: UpdateTabletoDto) {
-    return await({
+    return await prisma.tabletos.update({
       where:{Id:id},
       data: updateTabletoDto,
     });
   }
 
   async remove(id: number) {
-    return await ({
+    return await prisma.tabletos.delete({
       where: {Id:id},
     });
   }
