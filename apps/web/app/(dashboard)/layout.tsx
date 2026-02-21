@@ -15,8 +15,8 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-[radial-gradient(circle_at_top_right,rgba(161,196,253,0.22),transparent_45%),radial-gradient(circle_at_10%_40%,rgba(167,243,208,0.18),transparent_40%),oklch(0.985_0.004_255)] dark:bg-[radial-gradient(circle_at_top_right,rgba(20,184,166,0.14),transparent_45%),radial-gradient(circle_at_12%_35%,rgba(56,189,248,0.12),transparent_40%),oklch(0.17_0.02_262)]">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent,oklch(0.975_0.006_255))] dark:bg-[linear-gradient(to_bottom,transparent,oklch(0.145_0.018_262))]" />
+    <div className="relative min-h-screen overflow-x-clip bg-[radial-gradient(circle_at_88%_-8%,rgba(120,174,255,0.22),transparent_40%),radial-gradient(circle_at_14%_4%,rgba(45,212,191,0.16),transparent_35%),oklch(0.985_0.004_255)] dark:bg-[radial-gradient(circle_at_85%_-10%,rgba(34,211,238,0.16),transparent_40%),radial-gradient(circle_at_18%_-2%,rgba(74,222,128,0.12),transparent_35%),oklch(0.19_0.018_255)]">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent,oklch(0.975_0.006_255))] dark:bg-[linear-gradient(to_bottom,transparent,oklch(0.17_0.02_255))]" />
       <DashboardHeader />
       <main className="relative mx-auto w-full max-w-[1240px] px-4 py-5 md:px-6 md:py-7">
         {children}

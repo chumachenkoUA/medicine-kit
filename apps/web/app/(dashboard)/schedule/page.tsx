@@ -1,22 +1,40 @@
 import { CalendarClock, Clock3, Pill } from "lucide-react"
 
+import { ScheduleCalendar } from "@/components/schedule/schedule-calendar"
 import { PageShell } from "@/components/dashboard/page-shell"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   getMedicineCourses,
   getMedicines,
-  getUpcomingDoses,
 } from "@/lib/client-api/medicines"
 
 export default async function SchedulePage() {
-  const [upcomingDoses, courses, medicines] = await Promise.all([
-    getUpcomingDoses(),
-    getMedicineCourses(),
-    getMedicines(),
-  ])
+  const [medicines, courses] = await Promise.all([getMedicines(), getMedicineCourses()])
 
   const medicineNameById = new Map(medicines.map((medicine) => [medicine.id, medicine.name]))
+  const calendarEvents = medicines.flatMap((medicine) =>
+    medicine.packages.map((pack) => ({
+      id: `${medicine.id}-${pack.id}`,
+      medicineName: medicine.name,
+      expiresAt: pack.expiresAt,
+      tabletsInPack: pack.tabletsInPack,
+    }))
+  )
+
+  const upcomingDoses = calendarEvents
+    .sort(
+      (a, b) =>
+        new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime()
+    )
+    .map((event) => ({
+      id: event.id,
+      medicineName: event.medicineName,
+      time: new Date(event.expiresAt).toLocaleDateString("uk-UA"),
+      status: "scheduled" as const,
+      statusLabel: "Контроль терміну",
+    }))
+    .slice(0, 6)
 
   const activeCourses = courses.filter((course) => course.status === "active")
   const plannedCourses = courses.filter((course) => course.status === "planned")
@@ -72,9 +90,25 @@ export default async function SchedulePage() {
               <p className="text-sm text-muted-foreground">Заплановані</p>
               <p className="text-xl font-semibold">{plannedCourses.length}</p>
             </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm text-muted-foreground">Події в календарі</p>
+              <p className="text-xl font-semibold">{calendarEvents.length}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-border/70 bg-card/95 dark:bg-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <CalendarClock className="size-4" />
+            Календар аптечки
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScheduleCalendar events={calendarEvents} />
+        </CardContent>
+      </Card>
 
       <Card className="border-border/70 bg-card/95 dark:bg-card">
         <CardHeader className="pb-2">
