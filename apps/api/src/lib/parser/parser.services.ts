@@ -1,48 +1,51 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 @Injectable()
 export class ParserService {
-  // Додаємо логер NestJS для зручного відстеження помилок у консолі
   private readonly logger = new Logger(ParserService.name);
 
   async parsePage(url: string) {
     try {
-      // 1. Відправляємо запит, маскуючись під звичайний браузер Google Chrome
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7',
+      this.logger.log(`Starting stealth parse for: ${url}`);
+
+      // 1. Dynamically import got-scraping to avoid NestJS ESM/CommonJS conflicts
+      const gotScrapingModule = await eval(`import('got-scraping')`);
+      const gotScraping = gotScrapingModule.gotScraping;
+
+      // 2. Fetch the page mimicking a real browser's TLS fingerprint
+      const response = await gotScraping({
+        url: url,
+        headerGeneratorOptions: {
+          browsers: ['chrome', 'firefox'],
+          operatingSystems: ['windows', 'macos'],
         },
       });
 
-      const $ = cheerio.load(response.data);
+      if (response.statusCode !== 200) {
+        throw new Error(`Cloudflare or server blocked the request. Status: ${response.statusCode}`);
+      }
 
-      // 2. НАЗВА: 
-      // На tabletki.ua головна назва лежить у тезі <h1>. 
-      // Як запасний варіант беремо og:title або звичайний <title>.
+      // 3. Load the raw HTML into Cheerio
+      const $ = cheerio.load(response.body);
+
+      // 4. Extract data using our optimized selectors
       const title = $('h1').first().text().trim() 
         || $('meta[property="og:title"]').attr('content')?.trim() 
         || $('title').text().trim();
 
-      // 3. ОПИС: 
-      // Мета-тег description на таких сайтах зазвичай містить коротку вижимку 
-      // (наприклад: "Купити Ношпа таблетки... Діюча речовина: дротаверин").
       const description = $('meta[name="description"]').attr('content')?.trim() 
         || $('meta[property="og:description"]').attr('content')?.trim() 
         || '';
 
-      // 4. ФОТО: 
-      // og:image - це найвищої якості картинка, яку сайт віддає для соцмереж.
-      // Якщо її немає, шукаємо перше зображення всередині блоку товару.
       const photo = $('meta[property="og:image"]').attr('content')?.trim() 
-        || $('div[class*="product"] img').first().attr('src') // Шукає img в будь-якому div, клас якого містить слово "product"
+        || $('div[class*="product"] img').first().attr('src')
         || $('img').first().attr('src') 
         || '';
 
-      // Повертаємо об'єкт для фронтенду
+      this.logger.log('Successfully parsed data!');
+
+      // 5. Return the cleanly formatted object matching your DTO
       return {
         link: url,
         name: title,
@@ -51,11 +54,8 @@ export class ParserService {
       };
 
     } catch (error) {
-      // Логуємо реальну помилку в консоль бекенду (наприклад, статус 403 або 404)
-      this.logger.error(`Помилка парсингу URL: ${url}. Деталі: ${error.message}`);
-      
-      // Віддаємо фронтенду зрозумілу помилку
-      throw new BadRequestException('Не вдалося завантажити дані з сайту. Перевірте правильність посилання.');
+      this.logger.error(`Failed to parse URL: ${url}. Details: ${error.message}`);
+      throw new BadRequestException('Could not load data from the website. Check the link or the site might be protected.');
     }
   }
 }

@@ -44,7 +44,7 @@ export class CoursesService {
   }
 
   async remove(id: number) {
-    return await prisma.course.delete({
+    return await prisma.courses.delete({
       where:{Id:id},
     });
   }
