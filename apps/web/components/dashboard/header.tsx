@@ -24,7 +24,7 @@ export function DashboardHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/88 backdrop-blur-xl">
       <div className="mx-auto flex min-h-16 w-full max-w-[1200px] flex-wrap items-center gap-3 px-4 py-2 md:px-6">
         <Link href="/dashboard" className="flex items-center gap-2">
           <Pill className="size-6 text-primary" />

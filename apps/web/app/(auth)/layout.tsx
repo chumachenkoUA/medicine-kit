@@ -12,7 +12,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-100 to-slate-200/60 p-4 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-100 to-slate-200/60 p-4 dark:from-[oklch(0.18_0.02_255)] dark:via-[oklch(0.2_0.02_255)] dark:to-[oklch(0.24_0.02_255)]">
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-md flex-col justify-center">
         <Link
           href="/"

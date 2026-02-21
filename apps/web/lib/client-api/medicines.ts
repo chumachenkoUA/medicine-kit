@@ -3,10 +3,12 @@ import { parseJsonOrThrow } from "@/lib/client-api/http"
 import {
   apiTabletoListSchema,
   apiTabletoSchema,
+  apiTabletosUserListSchema,
   createTabletoResponseSchema,
 } from "@/lib/medicines/contracts"
 import {
-  mapTabletoToDashboardItem,
+  mapTabletosUsersToDashboardItems,
+  mapTabletosUsersToPackagesByMedicineId,
   mapTabletoToMedicine,
   toCreateTabletoRequest,
 } from "@/lib/medicines/mappers"
@@ -75,26 +77,44 @@ export async function createMedicine(
 }
 
 export async function getMedicines(): Promise<MedicineDashboardItem[]> {
-  const payload = await fetchApiJson<unknown>("/api/tabletos")
-  const parsed = apiTabletoListSchema.safeParse(payload)
-  if (!parsed.success) {
-    throw new Error("Бекенд повернув некоректний список препаратів.")
+  const [inventoryPayload, catalogPayload] = await Promise.all([
+    fetchApiJson<unknown>("/api/tabletos-users"),
+    fetchApiJson<unknown>("/api/tabletos"),
+  ])
+
+  const parsedInventory = apiTabletosUserListSchema.safeParse(inventoryPayload)
+  if (!parsedInventory.success) {
+    throw new Error("Бекенд повернув некоректний список упаковок користувача.")
   }
 
-  return parsed.data.map((item) => mapTabletoToDashboardItem(item))
+  const parsedCatalog = apiTabletoListSchema.safeParse(catalogPayload)
+  const tabletoCatalog = parsedCatalog.success ? parsedCatalog.data : []
+
+  return mapTabletosUsersToDashboardItems(parsedInventory.data, tabletoCatalog)
 }
 
 export async function getMedicineById(id: MedicineId): Promise<Medicine | null> {
-  const response = await fetchApiResponse(`/api/tabletos/${id}`)
-  if (response.status === 404) return null
+  const [response, inventoryPayload] = await Promise.all([
+    fetchApiResponse(`/api/tabletos/${id}`),
+    fetchApiJson<unknown>("/api/tabletos-users"),
+  ])
 
+  if (response.status === 404) return null
   const payload = await parseJsonOrThrow<unknown>(response)
   const parsed = apiTabletoSchema.nullable().safeParse(payload)
   if (!parsed.success) {
     throw new Error("Бекенд повернув некоректні деталі препарату.")
   }
+  if (!parsed.data) return null
 
-  return parsed.data ? mapTabletoToMedicine(parsed.data) : null
+  const medicine = mapTabletoToMedicine(parsed.data)
+  const parsedInventory = apiTabletosUserListSchema.safeParse(inventoryPayload)
+  if (!parsedInventory.success) return medicine
+
+  return {
+    ...medicine,
+    packages: mapTabletosUsersToPackagesByMedicineId(parsedInventory.data, String(id)),
+  }
 }
 
 export async function getUpcomingDoses(): Promise<UpcomingDose[]> {
