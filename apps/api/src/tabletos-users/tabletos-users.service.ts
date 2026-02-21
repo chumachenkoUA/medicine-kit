@@ -20,24 +20,30 @@ export class TabletosUsersService {
   }
 
   async findAll() {
-    return await prisma.tabletos_user.findMany;
+    return await prisma.tabletos_user.findMany({include: {
+      tabletos: true,
+    }});
   }
 
   async findOne(id: number) {
     return await prisma.tabletos_user.findUnique({
       where:{Id:id},
+      include: { tabletos: true },
+      
     });
   }
 
   async update(id: number, updateTabletosUserDto: UpdateTabletosUserDto) {
     return await({
-      where:{ID:id},
-      data:updateTabletosUserDto,
-    }) ;
+      where:{Id:id},
+      data: {
+        Count: updateTabletosUserDto.count,
+        Expiration_date: updateTabletosUserDto.expirationDate,
+  }}) ;
   }
 
   async remove(id: number) {
-    return await({
+    return await prisma.tabletos_user.delete({
       where:{Id:id},
     });
   }
