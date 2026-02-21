@@ -22,7 +22,7 @@ export class CoursesService {
   }
 
   async findAll() {
-    return await  prisma.courses.findMany;
+    return await  prisma.courses.findMany();
   }
 
   async findOne(id: number) {
@@ -34,12 +34,17 @@ export class CoursesService {
   async update(id: number, updateCourseDto: UpdateCourseDto) {
     return await({
       where:{Id:id},
-      data: updateCourseDto,
+      data: {
+        // Якщо в DTO назви з маленької, а в БД з великої — мапимо їх тут
+        Name_doctor: updateCourseDto.nameDoctor,
+        Description: updateCourseDto.description,
+        // Додай інші поля відповідно до твоєї схеми
+      },
     });
   }
 
   async remove(id: number) {
-    return await ({
+    return await prisma.course.delete({
       where:{Id:id},
     });
   }

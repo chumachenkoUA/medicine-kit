@@ -40,7 +40,11 @@ export class TabletosService {
   async update(id: number, updateTabletoDto: UpdateTabletoDto) {
     return await prisma.tabletos.update({
       where:{Id:id},
-      data: updateTabletoDto,
+      data: {
+        Name: updateTabletoDto.name,
+        Description: updateTabletoDto.description,
+        Format: updateTabletoDto.format,
+      }
     });
   }
 

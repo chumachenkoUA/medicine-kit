@@ -25,11 +25,17 @@ export class UsersService {
 
   async update(id: number, updateUserDto: UpdateUserDto) {
     return await({where: { id },
-    data: updateUserDto
-  });
+    data: {
+        Name: updateUserDto.name,
+        Surname: updateUserDto.surname,
+        Username: updateUserDto.username,
+        Email: updateUserDto.email,
+        Password: updateUserDto.password,
+  }});
   }
 
   async remove(id: number) {
-    return await ({where: {Id:id},}) ;
+    return await prisma.users.delete
+    ({where: {Id:id},}) ;
   }
 }
