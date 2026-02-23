@@ -88,6 +88,27 @@ export async function createMedicine(
   payload: CreateMedicinePayload
 ): Promise<{ id: string }> {
   const requestBody = toCreateTabletoRequest(payload)
+  const createDate = new Date().toISOString()
+
+  const createPackages = async (tabletoId: number) => {
+    if (payload.packages.length === 0) return
+
+    await Promise.all(
+      payload.packages.map((pack) =>
+        fetchApiJson<unknown>("/api/tabletos-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tabletoId,
+            count: pack.tabletsInPack,
+            expirationDate: pack.expiresAt,
+            createDate,
+          }),
+        })
+      )
+    )
+  }
+
   try {
     const responsePayload = await fetchApiJson<unknown>("/api/tabletos", {
       method: "POST",
@@ -95,7 +116,22 @@ export async function createMedicine(
       body: JSON.stringify(requestBody),
     })
 
-    return mapCreateMedicinePayload(responsePayload)
+    const created = mapCreateMedicinePayload(responsePayload)
+    const tabletoId = Number(created.id)
+    if (!Number.isInteger(tabletoId) || tabletoId <= 0) {
+      throw new Error("Не вдалося визначити ID створеного препарату.")
+    }
+
+    try {
+      await createPackages(tabletoId)
+    } catch (error) {
+      throw normalizeClientError(
+        error,
+        `Препарат створено (ID: ${created.id}), але не вдалося додати упаковки.`
+      )
+    }
+
+    return created
   } catch (error) {
     throw normalizeClientError(error, "Не вдалося створити препарат.")
   }

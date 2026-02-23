@@ -51,6 +51,13 @@ export const createTabletoResponseSchema = z.object({
   Id: z.union([z.number(), z.string()]),
 })
 
+export const createTabletosUserRequestSchema = z.object({
+  tabletoId: z.coerce.number().int().positive(),
+  count: z.coerce.number().int().positive(),
+  expirationDate: z.string().date(),
+  createDate: z.string().datetime(),
+})
+
 const apiIdLikeSchema = z.union([z.number(), z.string()])
 const optionalTextSchema = z
   .string()
@@ -149,6 +156,7 @@ export type ApiTableto = z.infer<typeof apiTabletoSchema>
 export type ApiTabletosUser = z.infer<typeof apiTabletosUserSchema>
 export type ApiCourse = z.infer<typeof apiCourseSchema>
 export type CreateTabletoRequest = z.infer<typeof createTabletoRequestSchema>
+export type CreateTabletosUserRequest = z.infer<typeof createTabletosUserRequestSchema>
 export type MedicineSearchResultContract = z.infer<typeof medicineSearchResultSchema>
 export type MedicinePreviewResponseContract = z.infer<typeof medicinePreviewResponseSchema>
 export type CreateMedicineResponseContract = z.infer<typeof createMedicineResponseSchema>
