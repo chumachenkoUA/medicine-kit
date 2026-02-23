@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const response = await fetchBackend("/tabletos/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: parsed.data.url }),
+      body: JSON.stringify({ link: parsed.data.url }),
     })
 
     if (!response.ok) {
