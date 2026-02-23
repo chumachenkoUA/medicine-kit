@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete } from '@nestjs/common';
 import { TabletosService } from './tabletos.service';
 import { CreateTabletoDto } from './dto/create-tableto.dto';
 import { UpdateTabletoDto } from './dto/update-tableto.dto';
@@ -13,11 +13,11 @@ export class ParseLinkDto {
 export class TabletosController {
   constructor(private readonly tabletosService: TabletosService) {}
 
-  @Post('parse') // Маршрут буде: POST http://localhost:3000/api/tabletos/parse
+  @Post('parse') // Маршрут буде: POST http://localhost:3000/tabletos/parse
   @HttpCode(HttpStatus.OK) // Ставимо статус 200 OK (бо 201 Created використовується, коли ми щось зберігаємо в БД)
-  async parseUrl(@Body() body: ParseLinkDto) {
+  async parseUrl(@Body() body: {link:string}) {
     // Передаємо посилання з тіла запиту у твій сервіс
-    return await this.tabletosService.parseLinkForForm(body.url);
+    return await this.tabletosService.parseLinkForForm(body.link);
   }
   
   @UseGuards(AuthGuard)
@@ -32,17 +32,17 @@ export class TabletosController {
   }
   
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.tabletosService.findOne(id);
+  findOne(@Param('id') id: string) {
+    return this.tabletosService.findOne(+id);
   }
   @UseGuards(AuthGuard)
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateTabletoDto: UpdateTabletoDto) {
-    return this.tabletosService.update(id, updateTabletoDto);
+  update(@Param('id') id: string, @Body() updateTabletoDto: UpdateTabletoDto) {
+    return this.tabletosService.update(+id, updateTabletoDto);
   }
   @UseGuards(AuthGuard)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.tabletosService.remove(id);
+  remove(@Param('id') id: string) {
+    return this.tabletosService.remove(+id);
   }
 }
