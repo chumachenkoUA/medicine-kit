@@ -21,13 +21,13 @@ import {
 import type { MedicineId } from "@/types/medicine"
 
 interface MedicineDetailsPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default async function MedicineDetailsPage({
   params,
 }: MedicineDetailsPageProps) {
-  const { id } = params
+  const { id } = await params
   const [medicine, courses] = await Promise.all([
     getMedicineById(id as MedicineId),
     getMedicineCoursesById(id as MedicineId),

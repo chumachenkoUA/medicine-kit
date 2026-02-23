@@ -1,27 +1,52 @@
+import { z } from "zod"
 import type { CreateMedicinePayload } from "@/lib/medicines/types"
 
-export interface PackageForm {
-  tabletsInPack: string
-  expiresAt: string
-  batchNumber: string
-}
+const optionalUrlInputSchema = z
+  .string()
+  .trim()
+  .refine((value) => !value || URL.canParse(value), {
+    message: "Введи коректний URL або залиш поле порожнім.",
+  })
 
-export interface CreateMedicineFormState {
-  name: string
-  description: string
-  form: string
-  imageUrl: string
-  sourceUrl: string
-  packages: PackageForm[]
-}
+const requiredUrlInputSchema = z
+  .string()
+  .trim()
+  .min(1, "Вкажи посилання на джерело.")
+  .refine((value) => URL.canParse(value), {
+    message: "Введи коректний URL джерела.",
+  })
 
-export const EMPTY_PACKAGE: PackageForm = {
+export const packageFormSchema = z.object({
+  tabletsInPack: z
+    .string()
+    .trim()
+    .min(1, "Вкажи кількість таблеток.")
+    .refine((value) => Number.isInteger(Number(value)) && Number(value) > 0, {
+      message: "Кількість має бути цілим числом більше 0.",
+    }),
+  expiresAt: z.string().trim().min(1, "Вкажи термін придатності."),
+  batchNumber: z.string().trim(),
+})
+
+export const createMedicineFormSchema = z.object({
+  name: z.string().trim().min(1, "Вкажи назву препарату."),
+  description: z.string().trim(),
+  form: z.string().trim().min(1, "Вкажи форму препарату."),
+  imageUrl: optionalUrlInputSchema,
+  sourceUrl: requiredUrlInputSchema,
+  packages: z.array(packageFormSchema).min(1, "Додай хоча б одну упаковку."),
+})
+
+export type PackageFormValues = z.infer<typeof packageFormSchema>
+export type CreateMedicineFormValues = z.infer<typeof createMedicineFormSchema>
+
+export const EMPTY_PACKAGE: PackageFormValues = {
   tabletsInPack: "",
   expiresAt: "",
   batchNumber: "",
 }
 
-export const EMPTY_CREATE_MEDICINE_FORM: CreateMedicineFormState = {
+export const EMPTY_CREATE_MEDICINE_FORM: CreateMedicineFormValues = {
   name: "",
   description: "",
   form: "",
@@ -30,35 +55,19 @@ export const EMPTY_CREATE_MEDICINE_FORM: CreateMedicineFormState = {
   packages: [{ ...EMPTY_PACKAGE }],
 }
 
-export function hasValidPackage(pack: PackageForm): boolean {
-  return Boolean(pack.tabletsInPack.trim() && pack.expiresAt.trim())
-}
-
-export function canSubmitCreateMedicineForm(
-  form: CreateMedicineFormState
-): boolean {
-  return Boolean(
-    form.name.trim() &&
-      form.form.trim() &&
-      form.packages.some((pack) => hasValidPackage(pack))
-  )
-}
-
 export function toCreateMedicinePayload(
-  form: CreateMedicineFormState
+  form: CreateMedicineFormValues
 ): CreateMedicinePayload {
   return {
     name: form.name.trim(),
     description: form.description.trim(),
     form: form.form.trim(),
     imageUrl: form.imageUrl.trim() || undefined,
-    sourceUrl: form.sourceUrl.trim() || undefined,
-    packages: form.packages
-      .filter((pack) => hasValidPackage(pack))
-      .map((pack) => ({
-        tabletsInPack: Number(pack.tabletsInPack),
-        expiresAt: pack.expiresAt,
-        batchNumber: pack.batchNumber.trim() || undefined,
-      })),
+    sourceUrl: form.sourceUrl.trim(),
+    packages: form.packages.map((pack) => ({
+      tabletsInPack: Number(pack.tabletsInPack),
+      expiresAt: pack.expiresAt,
+      batchNumber: pack.batchNumber.trim() || undefined,
+    })),
   }
 }

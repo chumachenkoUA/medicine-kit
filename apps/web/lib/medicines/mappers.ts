@@ -148,7 +148,7 @@ export function toCreateTabletoRequest(
     description: payload.description || undefined,
     quantity,
     format: payload.form,
-    link: payload.sourceUrl || "https://example.com",
+    link: payload.sourceUrl,
     photo: payload.imageUrl || undefined,
     effects: undefined,
     rate: undefined,

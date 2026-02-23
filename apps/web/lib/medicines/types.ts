@@ -3,7 +3,7 @@ export interface CreateMedicinePayload {
   description: string
   form: string
   imageUrl?: string
-  sourceUrl?: string
+  sourceUrl: string
   packages: Array<{
     tabletsInPack: number
     expiresAt: string

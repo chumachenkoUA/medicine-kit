@@ -1,10 +1,18 @@
 import { fetchApiJson, fetchApiResponse } from "@/lib/client-api/client"
 import { parseJsonOrThrow } from "@/lib/client-api/http"
+import { normalizeClientError } from "@/lib/client-api/errors"
 import {
+  mapCreateMedicinePayload,
+  mapPreviewMedicinePayload,
+  mapSearchMedicinesPayload,
+} from "@/lib/client-api/medicines.mappers"
+import {
+  apiCourseListSchema,
   apiTabletoListSchema,
   apiTabletoSchema,
   apiTabletosUserListSchema,
-  createTabletoResponseSchema,
+  type MedicinePreviewResponseContract,
+  type MedicineSearchResultContract,
 } from "@/lib/medicines/contracts"
 import {
   mapTabletosUsersToDashboardItems,
@@ -22,58 +30,111 @@ import type {
 } from "@/types/medicine"
 
 export type { CreateMedicinePayload } from "@/lib/medicines/types"
-
-export interface SearchMedicineResult {
-  id: string
-  name: string
-  form?: string
-}
+export type SearchMedicineResult = MedicineSearchResultContract
 
 export interface MedicinePreviewRequest {
   url: string
 }
+export type MedicinePreviewResponse = MedicinePreviewResponseContract
 
-export interface MedicinePreviewResponse {
-  sourceUrl: string
-  imageUrl?: string
-  name?: string
-  description?: string
-  form?: string
+function buildTimesByQuantityDay(quantityDay: number): string[] {
+  if (quantityDay <= 1) return ["08:00"]
+  if (quantityDay === 2) return ["08:00", "20:00"]
+  if (quantityDay === 3) return ["08:00", "14:00", "20:00"]
+  return Array.from({ length: quantityDay }, (_, index) =>
+    `${String((8 + index * 2) % 24).padStart(2, "0")}:00`
+  )
 }
 
 export async function searchMedicines(
-  query: string
+  query: string,
+  options?: { signal?: AbortSignal }
 ): Promise<SearchMedicineResult[]> {
   const normalizedQuery = query.trim()
   if (!normalizedQuery) return []
 
-  return fetchApiJson<SearchMedicineResult[]>(
-    `/api/tabletos/search?query=${encodeURIComponent(normalizedQuery)}`
-  )
+  try {
+    const payload = await fetchApiJson<unknown>(
+      `/api/tabletos/search?query=${encodeURIComponent(normalizedQuery)}`,
+      { signal: options?.signal }
+    )
+
+    return mapSearchMedicinesPayload(payload)
+  } catch (error) {
+    throw normalizeClientError(error, "Не вдалося виконати пошук препаратів.")
+  }
 }
 
 export async function previewMedicineFromUrl(
   payload: MedicinePreviewRequest
 ): Promise<MedicinePreviewResponse> {
-  return fetchApiJson<MedicinePreviewResponse>("/api/tabletos/preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  })
+  try {
+    const responsePayload = await fetchApiJson<unknown>("/api/tabletos/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    return mapPreviewMedicinePayload(responsePayload, payload.url)
+  } catch (error) {
+    throw normalizeClientError(
+      error,
+      "Не вдалося отримати попередні дані з посилання."
+    )
+  }
 }
 
 export async function createMedicine(
   payload: CreateMedicinePayload
 ): Promise<{ id: string }> {
   const requestBody = toCreateTabletoRequest(payload)
-  const created = await fetchApiJson<unknown>("/api/tabletos", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requestBody),
-  })
+  const createDate = new Date().toISOString()
 
-  const parsed = createTabletoResponseSchema.parse(created)
-  return { id: String(parsed.Id) }
+  const createPackages = async (tabletoId: number) => {
+    if (payload.packages.length === 0) return
+
+    await Promise.all(
+      payload.packages.map((pack) =>
+        fetchApiJson<unknown>("/api/tabletos-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tabletoId,
+            count: pack.tabletsInPack,
+            expirationDate: pack.expiresAt,
+            createDate,
+          }),
+        })
+      )
+    )
+  }
+
+  try {
+    const responsePayload = await fetchApiJson<unknown>("/api/tabletos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    })
+
+    const created = mapCreateMedicinePayload(responsePayload)
+    const tabletoId = Number(created.id)
+    if (!Number.isInteger(tabletoId) || tabletoId <= 0) {
+      throw new Error("Не вдалося визначити ID створеного препарату.")
+    }
+
+    try {
+      await createPackages(tabletoId)
+    } catch (error) {
+      throw normalizeClientError(
+        error,
+        `Препарат створено (ID: ${created.id}), але не вдалося додати упаковки.`
+      )
+    }
+
+    return created
+  } catch (error) {
+    throw normalizeClientError(error, "Не вдалося створити препарат.")
+  }
 }
 
 export async function getMedicines(): Promise<MedicineDashboardItem[]> {
@@ -94,13 +155,19 @@ export async function getMedicines(): Promise<MedicineDashboardItem[]> {
 }
 
 export async function getMedicineById(id: MedicineId): Promise<Medicine | null> {
-  const [response, inventoryPayload] = await Promise.all([
-    fetchApiResponse(`/api/tabletos/${id}`),
-    fetchApiJson<unknown>("/api/tabletos-users"),
-  ])
+  if (!/^\d+$/.test(String(id))) return null
+
+  const response = await fetchApiResponse(`/api/tabletos/${id}`)
 
   if (response.status === 404) return null
-  const payload = await parseJsonOrThrow<unknown>(response)
+  if (!response.ok) return null
+
+  let payload: unknown
+  try {
+    payload = await parseJsonOrThrow<unknown>(response)
+  } catch {
+    return null
+  }
   const parsed = apiTabletoSchema.nullable().safeParse(payload)
   if (!parsed.success) {
     throw new Error("Бекенд повернув некоректні деталі препарату.")
@@ -108,12 +175,17 @@ export async function getMedicineById(id: MedicineId): Promise<Medicine | null> 
   if (!parsed.data) return null
 
   const medicine = mapTabletoToMedicine(parsed.data)
-  const parsedInventory = apiTabletosUserListSchema.safeParse(inventoryPayload)
-  if (!parsedInventory.success) return medicine
+  try {
+    const inventoryPayload = await fetchApiJson<unknown>("/api/tabletos-users")
+    const parsedInventory = apiTabletosUserListSchema.safeParse(inventoryPayload)
+    if (!parsedInventory.success) return medicine
 
-  return {
-    ...medicine,
-    packages: mapTabletosUsersToPackagesByMedicineId(parsedInventory.data, String(id)),
+    return {
+      ...medicine,
+      packages: mapTabletosUsersToPackagesByMedicineId(parsedInventory.data, String(id)),
+    }
+  } catch {
+    return medicine
   }
 }
 
@@ -124,10 +196,38 @@ export async function getUpcomingDoses(): Promise<UpcomingDose[]> {
 export async function getMedicineCoursesById(
   id: MedicineId
 ): Promise<MedicineCourse[]> {
-  void id
-  return []
+  const courses = await getMedicineCourses()
+  return courses.filter((course) => course.medicineId === id)
 }
 
 export async function getMedicineCourses(): Promise<MedicineCourse[]> {
-  return []
+  const payload = await fetchApiJson<unknown>("/api/courses")
+  const parsed = apiCourseListSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error("Бекенд повернув некоректний список курсів.")
+  }
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  return parsed.data.map((course) => {
+    const periodDays = Math.max(1, Number(course.Period_courses) || 1)
+    const start = new Date(today)
+    const end = new Date(today)
+    end.setDate(end.getDate() + periodDays - 1)
+
+    return {
+      id: String(course.Id),
+      medicineId: String(course.tabletos_id),
+      title: course.Description?.trim()
+        ? course.Description
+        : `Курс від ${course.Name_doctor}`,
+      dosage: `${course.Quantity_day} табл./день`,
+      frequency: `${course.Quantity_week} дн./тижд.`,
+      times: buildTimesByQuantityDay(Number(course.Quantity_day) || 1),
+      periodStart: start.toISOString(),
+      periodEnd: end.toISOString(),
+      status: "active",
+    } satisfies MedicineCourse
+  })
 }
