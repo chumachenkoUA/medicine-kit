@@ -9,6 +9,9 @@ export async function GET(
   if (!id) {
     return NextResponse.json({ message: "Не вказано ID препарату." }, { status: 400 })
   }
+  if (!/^\d+$/.test(id)) {
+    return NextResponse.json({ message: "Некоректний ID препарату." }, { status: 400 })
+  }
 
   try {
     const response = await fetchBackend(`/tabletos/${id}`, { method: "GET" })

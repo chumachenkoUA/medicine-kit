@@ -4,6 +4,7 @@ import {
   CircleCheck,
   Clock3,
 } from "lucide-react"
+import Link from "next/link"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -99,7 +100,9 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Усі ліки в аптечці</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Активні: {medicines.length}</Badge>
+            <Button asChild size="sm">
+              <Link href="/dashboard/create-medicine">Додати ліки</Link>
+            </Button>
             <Badge
               variant="outline"
               className="border-amber-300 text-amber-800 dark:border-amber-500/40 dark:text-amber-200"
