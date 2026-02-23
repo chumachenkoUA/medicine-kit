@@ -1,11 +1,18 @@
 import { fetchApiJson, fetchApiResponse } from "@/lib/client-api/client"
 import { parseJsonOrThrow } from "@/lib/client-api/http"
+import { normalizeClientError } from "@/lib/client-api/errors"
+import {
+  mapCreateMedicinePayload,
+  mapPreviewMedicinePayload,
+  mapSearchMedicinesPayload,
+} from "@/lib/client-api/medicines.mappers"
 import {
   apiCourseListSchema,
   apiTabletoListSchema,
   apiTabletoSchema,
   apiTabletosUserListSchema,
-  createTabletoResponseSchema,
+  type MedicinePreviewResponseContract,
+  type MedicineSearchResultContract,
 } from "@/lib/medicines/contracts"
 import {
   mapTabletosUsersToDashboardItems,
@@ -23,27 +30,12 @@ import type {
 } from "@/types/medicine"
 
 export type { CreateMedicinePayload } from "@/lib/medicines/types"
-
-export interface SearchMedicineResult {
-  id: string
-  name: string
-  form?: string
-  description?: string
-  sourceUrl?: string
-  imageUrl?: string
-}
+export type SearchMedicineResult = MedicineSearchResultContract
 
 export interface MedicinePreviewRequest {
   url: string
 }
-
-export interface MedicinePreviewResponse {
-  sourceUrl: string
-  imageUrl?: string
-  name?: string
-  description?: string
-  form?: string
-}
+export type MedicinePreviewResponse = MedicinePreviewResponseContract
 
 function buildTimesByQuantityDay(quantityDay: number): string[] {
   if (quantityDay <= 1) return ["08:00"]
@@ -55,38 +47,58 @@ function buildTimesByQuantityDay(quantityDay: number): string[] {
 }
 
 export async function searchMedicines(
-  query: string
+  query: string,
+  options?: { signal?: AbortSignal }
 ): Promise<SearchMedicineResult[]> {
   const normalizedQuery = query.trim()
   if (!normalizedQuery) return []
 
-  return fetchApiJson<SearchMedicineResult[]>(
-    `/api/tabletos/search?query=${encodeURIComponent(normalizedQuery)}`
-  )
+  try {
+    const payload = await fetchApiJson<unknown>(
+      `/api/tabletos/search?query=${encodeURIComponent(normalizedQuery)}`,
+      { signal: options?.signal }
+    )
+
+    return mapSearchMedicinesPayload(payload)
+  } catch (error) {
+    throw normalizeClientError(error, "Не вдалося виконати пошук препаратів.")
+  }
 }
 
 export async function previewMedicineFromUrl(
   payload: MedicinePreviewRequest
 ): Promise<MedicinePreviewResponse> {
-  return fetchApiJson<MedicinePreviewResponse>("/api/tabletos/preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  })
+  try {
+    const responsePayload = await fetchApiJson<unknown>("/api/tabletos/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    return mapPreviewMedicinePayload(responsePayload, payload.url)
+  } catch (error) {
+    throw normalizeClientError(
+      error,
+      "Не вдалося отримати попередні дані з посилання."
+    )
+  }
 }
 
 export async function createMedicine(
   payload: CreateMedicinePayload
 ): Promise<{ id: string }> {
   const requestBody = toCreateTabletoRequest(payload)
-  const created = await fetchApiJson<unknown>("/api/tabletos", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requestBody),
-  })
+  try {
+    const responsePayload = await fetchApiJson<unknown>("/api/tabletos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    })
 
-  const parsed = createTabletoResponseSchema.parse(created)
-  return { id: String(parsed.Id) }
+    return mapCreateMedicinePayload(responsePayload)
+  } catch (error) {
+    throw normalizeClientError(error, "Не вдалося створити препарат.")
+  }
 }
 
 export async function getMedicines(): Promise<MedicineDashboardItem[]> {
