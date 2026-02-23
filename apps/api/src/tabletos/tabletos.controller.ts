@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
 import { TabletosService } from './tabletos.service';
 import { CreateTabletoDto } from './dto/create-tableto.dto';
 import { UpdateTabletoDto } from './dto/update-tableto.dto';
@@ -32,17 +32,17 @@ export class TabletosController {
   }
   
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tabletosService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.tabletosService.findOne(id);
   }
   @UseGuards(AuthGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTabletoDto: UpdateTabletoDto) {
-    return this.tabletosService.update(+id, updateTabletoDto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateTabletoDto: UpdateTabletoDto) {
+    return this.tabletosService.update(id, updateTabletoDto);
   }
   @UseGuards(AuthGuard)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.tabletosService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.tabletosService.remove(id);
   }
 }

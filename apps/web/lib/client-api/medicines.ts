@@ -1,6 +1,7 @@
 import { fetchApiJson, fetchApiResponse } from "@/lib/client-api/client"
 import { parseJsonOrThrow } from "@/lib/client-api/http"
 import {
+  apiCourseListSchema,
   apiTabletoListSchema,
   apiTabletoSchema,
   apiTabletosUserListSchema,
@@ -27,6 +28,9 @@ export interface SearchMedicineResult {
   id: string
   name: string
   form?: string
+  description?: string
+  sourceUrl?: string
+  imageUrl?: string
 }
 
 export interface MedicinePreviewRequest {
@@ -39,6 +43,15 @@ export interface MedicinePreviewResponse {
   name?: string
   description?: string
   form?: string
+}
+
+function buildTimesByQuantityDay(quantityDay: number): string[] {
+  if (quantityDay <= 1) return ["08:00"]
+  if (quantityDay === 2) return ["08:00", "20:00"]
+  if (quantityDay === 3) return ["08:00", "14:00", "20:00"]
+  return Array.from({ length: quantityDay }, (_, index) =>
+    `${String((8 + index * 2) % 24).padStart(2, "0")}:00`
+  )
 }
 
 export async function searchMedicines(
@@ -94,13 +107,19 @@ export async function getMedicines(): Promise<MedicineDashboardItem[]> {
 }
 
 export async function getMedicineById(id: MedicineId): Promise<Medicine | null> {
-  const [response, inventoryPayload] = await Promise.all([
-    fetchApiResponse(`/api/tabletos/${id}`),
-    fetchApiJson<unknown>("/api/tabletos-users"),
-  ])
+  if (!/^\d+$/.test(String(id))) return null
+
+  const response = await fetchApiResponse(`/api/tabletos/${id}`)
 
   if (response.status === 404) return null
-  const payload = await parseJsonOrThrow<unknown>(response)
+  if (!response.ok) return null
+
+  let payload: unknown
+  try {
+    payload = await parseJsonOrThrow<unknown>(response)
+  } catch {
+    return null
+  }
   const parsed = apiTabletoSchema.nullable().safeParse(payload)
   if (!parsed.success) {
     throw new Error("Бекенд повернув некоректні деталі препарату.")
@@ -108,12 +127,17 @@ export async function getMedicineById(id: MedicineId): Promise<Medicine | null> 
   if (!parsed.data) return null
 
   const medicine = mapTabletoToMedicine(parsed.data)
-  const parsedInventory = apiTabletosUserListSchema.safeParse(inventoryPayload)
-  if (!parsedInventory.success) return medicine
+  try {
+    const inventoryPayload = await fetchApiJson<unknown>("/api/tabletos-users")
+    const parsedInventory = apiTabletosUserListSchema.safeParse(inventoryPayload)
+    if (!parsedInventory.success) return medicine
 
-  return {
-    ...medicine,
-    packages: mapTabletosUsersToPackagesByMedicineId(parsedInventory.data, String(id)),
+    return {
+      ...medicine,
+      packages: mapTabletosUsersToPackagesByMedicineId(parsedInventory.data, String(id)),
+    }
+  } catch {
+    return medicine
   }
 }
 
@@ -124,10 +148,38 @@ export async function getUpcomingDoses(): Promise<UpcomingDose[]> {
 export async function getMedicineCoursesById(
   id: MedicineId
 ): Promise<MedicineCourse[]> {
-  void id
-  return []
+  const courses = await getMedicineCourses()
+  return courses.filter((course) => course.medicineId === id)
 }
 
 export async function getMedicineCourses(): Promise<MedicineCourse[]> {
-  return []
+  const payload = await fetchApiJson<unknown>("/api/courses")
+  const parsed = apiCourseListSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error("Бекенд повернув некоректний список курсів.")
+  }
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  return parsed.data.map((course) => {
+    const periodDays = Math.max(1, Number(course.Period_courses) || 1)
+    const start = new Date(today)
+    const end = new Date(today)
+    end.setDate(end.getDate() + periodDays - 1)
+
+    return {
+      id: String(course.Id),
+      medicineId: String(course.tabletos_id),
+      title: course.Description?.trim()
+        ? course.Description
+        : `Курс від ${course.Name_doctor}`,
+      dosage: `${course.Quantity_day} табл./день`,
+      frequency: `${course.Quantity_week} дн./тижд.`,
+      times: buildTimesByQuantityDay(Number(course.Quantity_day) || 1),
+      periodStart: start.toISOString(),
+      periodEnd: end.toISOString(),
+      status: "active",
+    } satisfies MedicineCourse
+  })
 }

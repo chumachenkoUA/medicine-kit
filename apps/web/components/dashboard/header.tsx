@@ -10,7 +10,6 @@ import { logoutAction } from "@/app/(auth)/actions"
 
 const navItems = [
   { href: "/dashboard", label: "Дашборд" },
-  { href: "/medicines", label: "Ліки" },
   { href: "/schedule", label: "Розклад" },
   { href: "/dashboard/create-medicine", label: "Додати ліки" },
 ]

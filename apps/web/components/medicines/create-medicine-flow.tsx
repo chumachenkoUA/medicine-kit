@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Loader2, Plus, Search, Trash2 } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Loader2, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -26,9 +26,9 @@ import {
 
 export function CreateMedicineFlow() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<SearchMedicineResult[]>([])
+  const searchRequestIdRef = useRef(0)
 
   const [previewUrl, setPreviewUrl] = useState("")
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -75,25 +75,48 @@ export function CreateMedicineFlow() {
     }))
   }
 
-  const handleSearch = async () => {
-    const query = searchQuery.trim()
-    if (!query) return
-
-    setSearchLoading(true)
+  const performSearch = async (query: string) => {
+    const requestId = ++searchRequestIdRef.current
     setSearchError(null)
-    setSearchResults([])
-
     try {
       const result = await searchMedicines(query)
+      if (requestId !== searchRequestIdRef.current) return
       setSearchResults(result)
     } catch (error) {
+      if (requestId !== searchRequestIdRef.current) return
       const message =
         error instanceof Error ? error.message : "Не вдалося виконати пошук."
       setSearchError(message)
       toast.error(message)
-    } finally {
-      setSearchLoading(false)
     }
+  }
+
+  useEffect(() => {
+    const query = searchQuery.trim()
+    if (query.length < 2) {
+      searchRequestIdRef.current += 1
+      setSearchError(null)
+      setSearchResults([])
+      return
+    }
+
+    const timer = setTimeout(() => {
+      void performSearch(query)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const handlePickExisting = (item: SearchMedicineResult) => {
+    setForm((prev) => ({
+      ...prev,
+      name: item.name || prev.name,
+      form: item.form ?? prev.form,
+      description: item.description ?? prev.description,
+      sourceUrl: item.sourceUrl ?? prev.sourceUrl,
+      imageUrl: item.imageUrl ?? prev.imageUrl,
+    }))
+    setSubmitSuccess(`Обрано препарат із системи: ${item.name}`)
   }
 
   const handlePreview = async () => {
@@ -159,14 +182,6 @@ export function CreateMedicineFlow() {
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Введи назву препарату..."
             />
-            <Button onClick={handleSearch} disabled={searchLoading}>
-              {searchLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Search className="size-4" />
-              )}
-              Пошук
-            </Button>
           </div>
 
           {searchError ? <p className="text-sm text-destructive">{searchError}</p> : null}
@@ -181,10 +196,14 @@ export function CreateMedicineFlow() {
                   <div>
                     <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {[item.form].filter(Boolean).join(" • ")}
+                      {[item.form, item.description].filter(Boolean).join(" • ")}
                     </p>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePickExisting(item)}
+                  >
                     Обрати наявні
                   </Button>
                 </div>

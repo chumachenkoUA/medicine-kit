@@ -23,6 +23,19 @@ export const apiTabletosUserSchema = z.object({
 
 export const apiTabletosUserListSchema = z.array(apiTabletosUserSchema)
 
+export const apiCourseSchema = z.object({
+  Id: z.union([z.number(), z.string()]),
+  Name_doctor: z.string(),
+  Period_courses: z.coerce.number().int().positive(),
+  Quantity_day: z.coerce.number().int().positive(),
+  Quantity_week: z.coerce.number().int().positive(),
+  Description: z.string().nullish(),
+  users_id: z.union([z.number(), z.string()]),
+  tabletos_id: z.union([z.number(), z.string()]),
+})
+
+export const apiCourseListSchema = z.array(apiCourseSchema)
+
 export const createTabletoRequestSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -40,4 +53,5 @@ export const createTabletoResponseSchema = z.object({
 
 export type ApiTableto = z.infer<typeof apiTabletoSchema>
 export type ApiTabletosUser = z.infer<typeof apiTabletosUserSchema>
+export type ApiCourse = z.infer<typeof apiCourseSchema>
 export type CreateTabletoRequest = z.infer<typeof createTabletoRequestSchema>

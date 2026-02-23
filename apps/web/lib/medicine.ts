@@ -28,7 +28,7 @@ export function isLowStock(item: StockLike): boolean {
 
 export function isExpiringSoon(
   item: ExpiryLike,
-  monthsThreshold = 3
+  monthsThreshold = 1
 ): boolean {
   if (!item.nearestExpiryAt) return false
   const expiryTime = new Date(item.nearestExpiryAt).getTime()

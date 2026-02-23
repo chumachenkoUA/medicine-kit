@@ -37,22 +37,26 @@ export function ScheduleCalendar({ events }: ScheduleCalendarProps) {
   const eventDays = useMemo(() => parsedEvents.map((event) => event.date), [parsedEvents])
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid items-start gap-4 xl:grid-cols-[max-content_minmax(280px,1fr)]">
       <Calendar
         mode="single"
         selected={selectedDate}
         onSelect={setSelectedDate}
         captionLayout="dropdown"
         modifiers={{ hasEvent: eventDays }}
+        modifiersClassNames={{
+          hasEvent:
+            "relative after:absolute after:bottom-1.5 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary/80",
+        }}
         classNames={{
           day: "relative",
           day_button:
             "aria-[selected=false]:data-[has-event=true]:border-primary/45 aria-[selected=false]:data-[has-event=true]:bg-primary/10",
         }}
-        className="w-full rounded-xl border border-border/70 bg-card/80 p-3"
+        className="w-fit max-w-full rounded-xl border border-border/70 bg-card/80 p-2 sm:p-3"
       />
 
-      <div className="rounded-xl border border-border/70 bg-card/80 p-4">
+      <div className="min-h-[220px] rounded-xl border border-border/70 bg-card/80 p-4">
         <div className="mb-3 flex items-center gap-2">
           <CalendarDays className="size-4 text-primary" />
           <p className="text-sm font-medium">
