@@ -14,7 +14,7 @@ model tabletos {
   Description String?   @db.VarChar(2044)
   Effects     String?   @db.VarChar(2044)
   Format      String    @db.VarChar(2044)
-  Link        String    @db.VarChar(2044)
+  Link        String    @unique @db.VarChar(2044)
   Photo       String?   @db.VarChar(2044)
   Quantity    Int
   Rate        Int?      @db.SmallInt

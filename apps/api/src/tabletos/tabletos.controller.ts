@@ -13,11 +13,11 @@ export class ParseLinkDto {
 export class TabletosController {
   constructor(private readonly tabletosService: TabletosService) {}
 
-  @Post('parse') // Маршрут буде: POST http://localhost:3000/api/tabletos/parse
+  @Post('parse') // Маршрут буде: POST http://localhost:3000/tabletos/parse
   @HttpCode(HttpStatus.OK) // Ставимо статус 200 OK (бо 201 Created використовується, коли ми щось зберігаємо в БД)
-  async parseUrl(@Body() body: ParseLinkDto) {
+  async parseUrl(@Body() body: {link:string}) {
     // Передаємо посилання з тіла запиту у твій сервіс
-    return await this.tabletosService.parseLinkForForm(body.url);
+    return await this.tabletosService.parseLinkForForm(body.link);
   }
   
   @UseGuards(AuthGuard)
