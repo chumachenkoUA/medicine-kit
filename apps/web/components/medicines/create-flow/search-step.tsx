@@ -2,6 +2,7 @@ import type { SearchMedicineResult } from "@/lib/client-api/medicines"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface SearchStepProps {
@@ -31,7 +32,11 @@ export function SearchStep({
         <CardTitle className="text-lg">Крок 1. Пошук у наявній базі</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <Label htmlFor="medicine-search-input" className="sr-only">
+          Пошук препарату
+        </Label>
         <Input
+          id="medicine-search-input"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder="Введи назву препарату..."

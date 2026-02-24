@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface PreviewStepProps {
@@ -30,7 +31,11 @@ export function PreviewStep({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-col gap-2 md:flex-row">
+          <Label htmlFor="medicine-preview-url" className="sr-only">
+            URL для парсингу препарату
+          </Label>
           <Input
+            id="medicine-preview-url"
             value={previewUrl}
             onChange={(event) => onPreviewUrlChange(event.target.value)}
             placeholder="https://tabletki.ua/..."

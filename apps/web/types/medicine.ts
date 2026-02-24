@@ -42,8 +42,9 @@ export interface MedicineCourse {
   dosage: string
   frequency: string
   times: string[]
-  periodStart: string
-  periodEnd: string
+  periodDays: number
+  periodStart?: string
+  periodEnd?: string
   status: CourseStatus
 }
 
