@@ -18,7 +18,22 @@ import {
   getMedicineById,
   getMedicineCoursesById,
 } from "@/lib/client-api/medicines"
-import type { MedicineId } from "@/types/medicine"
+import type { MedicineCourse, MedicineId } from "@/types/medicine"
+
+const courseStatusLabelMap: Record<MedicineCourse["status"], string> = {
+  active: "Активний",
+  planned: "Запланований",
+  completed: "Завершений",
+  paused: "Пауза",
+}
+
+function formatCoursePeriod(course: MedicineCourse): string {
+  if (course.periodStart && course.periodEnd) {
+    return formatDateRange(course.periodStart, course.periodEnd)
+  }
+
+  return `${course.periodDays} днів (дати не задані в API)`
+}
 
 interface MedicineDetailsPageProps {
   params: Promise<{ id: string }>
@@ -147,7 +162,7 @@ export default async function MedicineDetailsPage({
                   <Badge
                     variant={course.status === "active" ? "default" : "secondary"}
                   >
-                    {course.status}
+                    {courseStatusLabelMap[course.status]}
                   </Badge>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -165,9 +180,7 @@ export default async function MedicineDetailsPage({
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Період</p>
-                    <p className="font-medium">
-                      {formatDateRange(course.periodStart, course.periodEnd)}
-                    </p>
+                    <p className="font-medium">{formatCoursePeriod(course)}</p>
                   </div>
                 </div>
               </div>
@@ -176,8 +189,7 @@ export default async function MedicineDetailsPage({
           <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
             <p className="flex items-center gap-2">
               <ShieldCheck className="size-4" />
-              Наступний крок: додамо форму створення курсу з розкладом та
-              нагадуваннями.
+              Створення курсу з цього екрана ще в розробці.
             </p>
           </div>
         </CardContent>

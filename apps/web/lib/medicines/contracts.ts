@@ -30,6 +30,12 @@ export const apiCourseSchema = z.object({
   Quantity_day: z.coerce.number().int().positive(),
   Quantity_week: z.coerce.number().int().positive(),
   Description: z.string().nullish(),
+  Start_date: z.string().nullish(),
+  End_date: z.string().nullish(),
+  startDate: z.string().nullish(),
+  endDate: z.string().nullish(),
+  Status: z.string().nullish(),
+  status: z.string().nullish(),
   users_id: z.union([z.number(), z.string()]),
   tabletos_id: z.union([z.number(), z.string()]),
 })

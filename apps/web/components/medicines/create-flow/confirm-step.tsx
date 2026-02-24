@@ -169,6 +169,7 @@ export function ConfirmStep({
                     size="icon"
                     className="ml-auto"
                     type="button"
+                    aria-label={`Видалити упаковку ${index + 1}`}
                     disabled={packageFields.length === 1}
                     onClick={() => onRemovePackage(index)}
                   >

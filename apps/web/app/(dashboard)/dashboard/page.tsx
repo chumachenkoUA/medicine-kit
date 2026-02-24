@@ -11,8 +11,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MedicineBentoGrid } from "@/components/dashboard/medicine-bento-grid"
 import { doseStatusClassMap, isExpiringSoon, isLowStock } from "@/lib/medicine"
-import { getMedicines, getUpcomingDoses } from "@/lib/client-api/medicines"
-import type { MedicineDashboardItem, UpcomingDose } from "@/types/medicine"
+import {
+  computeUpcomingDoses,
+  getMedicineCourses,
+  getMedicines,
+} from "@/lib/client-api/medicines"
+import type {
+  MedicineCourse,
+  MedicineDashboardItem,
+  UpcomingDose,
+} from "@/types/medicine"
 
 const statusIconMap: Record<UpcomingDose["status"], typeof Clock3> = {
   now: CircleCheck,
@@ -24,10 +32,12 @@ const statusIconMap: Record<UpcomingDose["status"], typeof Clock3> = {
 export default async function DashboardPage() {
   let dueNow: UpcomingDose[] = []
   let medicines: MedicineDashboardItem[] = []
+  let courses: MedicineCourse[] = []
   let medicinesError: string | null = null
 
   try {
-    ;[dueNow, medicines] = await Promise.all([getUpcomingDoses(), getMedicines()])
+    ;[medicines, courses] = await Promise.all([getMedicines(), getMedicineCourses()])
+    dueNow = computeUpcomingDoses(courses, medicines)
   } catch {
     medicinesError = "Спробуй оновити сторінку пізніше."
   }
@@ -82,8 +92,8 @@ export default async function DashboardPage() {
                       <Clock3 className="size-4" />
                       {item.time}
                     </div>
-                    <Button size="sm" variant="outline">
-                      Відмітити
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href="/schedule">До розкладу</Link>
                     </Button>
                   </CardContent>
                 </Card>
@@ -128,8 +138,8 @@ export default async function DashboardPage() {
             <CardContent className="text-sm text-muted-foreground">
               {medicinesError}
               <div className="mt-3">
-                <Button variant="outline" size="sm">
-                  Спробувати ще раз
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/dashboard">Оновити сторінку</Link>
                 </Button>
               </div>
             </CardContent>

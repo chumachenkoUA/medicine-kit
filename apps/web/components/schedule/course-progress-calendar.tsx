@@ -19,13 +19,24 @@ interface CourseProgressCalendarProps {
   medicineNameById: Record<string, string>
 }
 
+function hasCourseRange(course: MedicineCourse): boolean {
+  if (!course.periodStart || !course.periodEnd) return false
+  const start = new Date(course.periodStart)
+  const end = new Date(course.periodEnd)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false
+  return start <= end
+}
+
 function dateKey(date: Date): string {
   return formatISO(startOfDay(date), { representation: "date" })
 }
 
 function getCourseDays(course: MedicineCourse): Date[] {
-  const start = startOfDay(new Date(course.periodStart))
-  const end = endOfDay(new Date(course.periodEnd))
+  const { periodStart, periodEnd } = course
+  if (!periodStart || !periodEnd) return []
+
+  const start = startOfDay(new Date(periodStart))
+  const end = endOfDay(new Date(periodEnd))
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
   if (start > end) return []
   return eachDayOfInterval({ start, end })
@@ -177,7 +188,13 @@ export function CourseProgressCalendar({
             </p>
             <p>
               <span className="text-muted-foreground">Період:</span>{" "}
-              {formatDate(selectedCourse.periodStart)} - {formatDate(selectedCourse.periodEnd)}
+              {hasCourseRange(selectedCourse) &&
+              selectedCourse.periodStart &&
+              selectedCourse.periodEnd
+                ? `${formatDate(selectedCourse.periodStart)} - ${formatDate(
+                    selectedCourse.periodEnd
+                  )}`
+                : `${selectedCourse.periodDays} днів (дати не задані)`}
             </p>
           </div>
 

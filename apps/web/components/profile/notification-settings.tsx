@@ -36,9 +36,9 @@ export function NotificationSettings() {
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Канал сповіщень</Label>
+            <Label htmlFor="notification-channel">Канал сповіщень</Label>
             <Select value={channel} onValueChange={setChannel}>
-              <SelectTrigger>
+              <SelectTrigger id="notification-channel">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

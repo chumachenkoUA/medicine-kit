@@ -4,34 +4,43 @@ import { CourseProgressCalendar } from "@/components/schedule/course-progress-ca
 import { PageShell } from "@/components/dashboard/page-shell"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDate } from "@/lib/date"
 import {
+  computeUpcomingDoses,
   getMedicineCourses,
   getMedicines,
 } from "@/lib/client-api/medicines"
+import type { MedicineCourse } from "@/types/medicine"
+
+function hasDateRange(course: MedicineCourse): boolean {
+  if (!course.periodStart || !course.periodEnd) return false
+  const start = new Date(course.periodStart)
+  const end = new Date(course.periodEnd)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false
+  return start <= end
+}
+
+function formatCoursePeriod(course: MedicineCourse): string {
+  const { periodStart, periodEnd } = course
+  if (hasDateRange(course) && periodStart && periodEnd) {
+    return `${formatDate(periodStart)} - ${formatDate(periodEnd)}`
+  }
+
+  return `Тривалість: ${course.periodDays} днів (дати не задані в API)`
+}
 
 export default async function SchedulePage() {
   const [medicines, courses] = await Promise.all([getMedicines(), getMedicineCourses()])
+  const upcomingDoses = computeUpcomingDoses(courses, medicines)
 
   const medicineNameById = new Map(medicines.map((medicine) => [medicine.id, medicine.name]))
   const medicineNameRecord = Object.fromEntries(medicineNameById.entries())
 
-  const upcomingDoses = courses
-    .flatMap((course) =>
-      course.times.map((time) => ({
-        id: `${course.id}-${time}`,
-        medicineName: medicineNameById.get(course.medicineId) ?? "Невідомо",
-        time,
-        sortDate: new Date(course.periodStart).getTime(),
-      status: "scheduled" as const,
-      statusLabel: "Контроль терміну",
-      }))
-    )
-    .sort((a, b) => a.sortDate - b.sortDate)
-    .slice(0, 6)
-
   const activeCourses = courses.filter((course) => course.status === "active")
   const plannedCourses = courses.filter((course) => course.status === "planned")
   const completedCourses = courses.filter((course) => course.status === "completed")
+  const coursesWithDates = courses.filter(hasDateRange)
+  const coursesWithoutDatesCount = courses.length - coursesWithDates.length
 
   return (
     <PageShell
@@ -50,6 +59,9 @@ export default async function SchedulePage() {
             {upcomingDoses.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Найближчих прийомів поки немає.
+                {coursesWithoutDatesCount > 0
+                  ? " Частина курсів не має дат початку/завершення в API."
+                  : ""}
               </p>
             ) : (
               upcomingDoses.map((dose) => (
@@ -86,7 +98,7 @@ export default async function SchedulePage() {
             </div>
             <div className="rounded-lg border p-3 sm:min-h-24">
               <p className="text-sm text-muted-foreground">Події в календарі</p>
-              <p className="text-xl font-semibold">{activeCourses.length + plannedCourses.length}</p>
+              <p className="text-xl font-semibold">{coursesWithDates.length}</p>
             </div>
             <div className="rounded-lg border p-3 sm:min-h-24">
               <p className="text-sm text-muted-foreground">Завершені</p>
@@ -104,10 +116,16 @@ export default async function SchedulePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CourseProgressCalendar
-            courses={courses}
-            medicineNameById={medicineNameRecord}
-          />
+          {coursesWithDates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Календар недоступний: бекенд поки не повертає дати курсів.
+            </p>
+          ) : (
+            <CourseProgressCalendar
+              courses={coursesWithDates}
+              medicineNameById={medicineNameRecord}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -137,6 +155,9 @@ export default async function SchedulePage() {
                 <p className="text-sm text-muted-foreground">
                   Часи: {course.times.join(", ")}
                 </p>
+                <p className="text-sm text-muted-foreground">
+                  {formatCoursePeriod(course)}
+                </p>
               </div>
             ))
           )}
@@ -163,7 +184,7 @@ export default async function SchedulePage() {
                   Препарат: {medicineNameById.get(course.medicineId) ?? "Невідомо"}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Період: {course.periodStart} - {course.periodEnd}
+                  {formatCoursePeriod(course)}
                 </p>
               </div>
             ))

@@ -37,6 +37,31 @@ export interface MedicinePreviewRequest {
 }
 export type MedicinePreviewResponse = MedicinePreviewResponseContract
 
+function parseCourseDate(value?: string | null): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  return date.toISOString()
+}
+
+function normalizeCourseStatus(value?: string | null): MedicineCourse["status"] {
+  const normalized = value?.trim().toLowerCase()
+
+  if (
+    normalized === "active" ||
+    normalized === "planned" ||
+    normalized === "completed" ||
+    normalized === "paused"
+  ) {
+    return normalized
+  }
+
+  if (normalized === "in_progress") return "active"
+  if (normalized === "done") return "completed"
+  if (normalized === "pending") return "planned"
+  return "planned"
+}
+
 function buildTimesByQuantityDay(quantityDay: number): string[] {
   if (quantityDay <= 1) return ["08:00"]
   if (quantityDay === 2) return ["08:00", "20:00"]
@@ -93,20 +118,29 @@ export async function createMedicine(
   const createPackages = async (tabletoId: number) => {
     if (payload.packages.length === 0) return
 
-    await Promise.all(
-      payload.packages.map((pack) =>
-        fetchApiJson<unknown>("/api/tabletos-users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tabletoId,
-            count: pack.tabletsInPack,
-            expirationDate: pack.expiresAt,
-            createDate,
-          }),
-        })
-      )
-    )
+    for (const pack of payload.packages) {
+      await fetchApiJson<unknown>("/api/tabletos-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tabletoId,
+          count: pack.tabletsInPack,
+          expirationDate: pack.expiresAt,
+          createDate,
+        }),
+      })
+    }
+  }
+
+  const rollbackCreatedMedicine = async (tabletoId: number): Promise<boolean> => {
+    try {
+      const response = await fetchApiResponse(`/api/tabletos/${tabletoId}`, {
+        method: "DELETE",
+      })
+      return response.ok
+    } catch {
+      return false
+    }
   }
 
   try {
@@ -125,10 +159,12 @@ export async function createMedicine(
     try {
       await createPackages(tabletoId)
     } catch (error) {
-      throw normalizeClientError(
-        error,
-        `Препарат створено (ID: ${created.id}), але не вдалося додати упаковки.`
-      )
+      const rollbackSucceeded = await rollbackCreatedMedicine(tabletoId)
+      const fallbackMessage = rollbackSucceeded
+        ? "Не вдалося додати всі упаковки. Створений препарат автоматично відкотили."
+        : "Не вдалося додати всі упаковки, а автоматичний rollback не вдався. Перевір препарат у списку."
+
+      throw normalizeClientError(error, fallbackMessage)
     }
 
     return created
@@ -189,8 +225,85 @@ export async function getMedicineById(id: MedicineId): Promise<Medicine | null> 
   }
 }
 
+export function computeUpcomingDoses(
+  courses: MedicineCourse[],
+  medicines: MedicineDashboardItem[]
+): UpcomingDose[] {
+  if (courses.length === 0) return []
+
+  const medicineNameById = new Map(medicines.map((medicine) => [medicine.id, medicine.name]))
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const todayEnd = new Date(todayStart)
+  todayEnd.setHours(23, 59, 59, 999)
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+
+  const toMinutes = (value: string): number | null => {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+    if (!match) return null
+
+    const hours = Number(match[1])
+    const minutes = Number(match[2])
+    if (
+      !Number.isInteger(hours) ||
+      !Number.isInteger(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      return null
+    }
+
+    return hours * 60 + minutes
+  }
+
+  return courses
+    .flatMap((course) => {
+      if (course.status !== "active") return []
+      if (!course.periodStart || !course.periodEnd) return []
+
+      const start = new Date(course.periodStart)
+      const end = new Date(course.periodEnd)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+      if (todayEnd < start || todayStart > end) return []
+
+      return course.times.flatMap((time, index) => {
+        const minutes = toMinutes(time)
+        if (minutes == null) return []
+
+        const delta = minutes - nowMinutes
+        const status: UpcomingDose["status"] =
+          delta < -30 ? "missed" : delta <= 15 ? "now" : delta <= 120 ? "soon" : "scheduled"
+        const statusLabel =
+          status === "missed"
+            ? "Пропущено"
+            : status === "now"
+              ? "Зараз"
+              : status === "soon"
+                ? "Скоро"
+                : "Заплановано"
+
+        return {
+          id: `${course.id}-${index}`,
+          medicineName: medicineNameById.get(course.medicineId) ?? "Невідомо",
+          time,
+          status,
+          statusLabel,
+        } satisfies UpcomingDose
+      })
+    })
+    .sort((a, b) => {
+      const aMinutes = toMinutes(a.time) ?? 0
+      const bMinutes = toMinutes(b.time) ?? 0
+      return aMinutes - bMinutes
+    })
+    .slice(0, 6)
+}
+
 export async function getUpcomingDoses(): Promise<UpcomingDose[]> {
-  return []
+  const [courses, medicines] = await Promise.all([getMedicineCourses(), getMedicines()])
+  return computeUpcomingDoses(courses, medicines)
 }
 
 export async function getMedicineCoursesById(
@@ -207,14 +320,11 @@ export async function getMedicineCourses(): Promise<MedicineCourse[]> {
     throw new Error("Бекенд повернув некоректний список курсів.")
   }
 
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
   return parsed.data.map((course) => {
     const periodDays = Math.max(1, Number(course.Period_courses) || 1)
-    const start = new Date(today)
-    const end = new Date(today)
-    end.setDate(end.getDate() + periodDays - 1)
+    const periodStart = parseCourseDate(course.Start_date ?? course.startDate)
+    const periodEnd = parseCourseDate(course.End_date ?? course.endDate)
+    const status = normalizeCourseStatus(course.Status ?? course.status)
 
     return {
       id: String(course.Id),
@@ -225,9 +335,10 @@ export async function getMedicineCourses(): Promise<MedicineCourse[]> {
       dosage: `${course.Quantity_day} табл./день`,
       frequency: `${course.Quantity_week} дн./тижд.`,
       times: buildTimesByQuantityDay(Number(course.Quantity_day) || 1),
-      periodStart: start.toISOString(),
-      periodEnd: end.toISOString(),
-      status: "active",
+      periodDays,
+      periodStart,
+      periodEnd,
+      status,
     } satisfies MedicineCourse
   })
 }

@@ -132,7 +132,9 @@ export function MedicineBentoGrid({ medicines }: MedicineBentoGridProps) {
                     <Button asChild>
                       <Link href={`/medicines/${selected.id}`}>Повні деталі</Link>
                     </Button>
-                    <Button variant="outline">Запланувати курс</Button>
+                    <Button variant="outline" asChild>
+                      <Link href="/schedule">До розкладу</Link>
+                    </Button>
                   </div>
                 </div>
 
