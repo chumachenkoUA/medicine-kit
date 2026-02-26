@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, Patch, Param, Delete } from '@nestjs/common';
 import { TabletosUsersService } from './tabletos-users.service';
 import { CreateTabletosUserDto } from './dto/create-tabletos-user.dto';
 import { UpdateTabletosUserDto } from './dto/update-tabletos-user.dto';
@@ -15,9 +15,9 @@ export class TabletosUsersController {
   }
   @UseGuards(AuthGuard)
   @Get()
-  findAll() {
-    return this.tabletosUsersService.findAll();
-  }
+  findAll(@Query() query: any) {
+  return this.tabletosUsersService.findAll(query);
+}
   @UseGuards(AuthGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
