@@ -10,7 +10,7 @@ export class CoursesService {
   Name_doctor: createCourseDto.nameDoctor,
   Period_courses: createCourseDto.period,
   Quantity_day: createCourseDto.qtyDay,
-  Quantity_week: createCourseDto.qtyWeek,
+  Start_date: createCourseDto.startDate,
   Description: createCourseDto.description,
   users: {
     connect: { Id: createCourseDto.userId } // Тобі треба передати userId з фронту
