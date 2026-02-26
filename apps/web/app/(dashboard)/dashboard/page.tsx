@@ -9,8 +9,8 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MedicineBentoGrid } from "@/components/dashboard/medicine-bento-grid"
-import { doseStatusClassMap, isExpiringSoon, isLowStock } from "@/lib/medicine"
+import { MedicineInventoryPanel } from "@/components/dashboard/medicine-inventory-panel"
+import { doseStatusClassMap } from "@/lib/medicine"
 import {
   computeUpcomingDoses,
   getMedicineCourses,
@@ -36,14 +36,14 @@ export default async function DashboardPage() {
   let medicinesError: string | null = null
 
   try {
-    ;[medicines, courses] = await Promise.all([getMedicines(), getMedicineCourses()])
+    ;[medicines, courses] = await Promise.all([
+      getMedicines({ sort: "name_asc" }),
+      getMedicineCourses(),
+    ])
     dueNow = computeUpcomingDoses(courses, medicines)
   } catch {
     medicinesError = "Спробуй оновити сторінку пізніше."
   }
-
-  const lowStockCount = medicines.filter(isLowStock).length
-  const expiringSoonCount = medicines.filter(isExpiringSoon).length
 
   return (
     <div className="grid gap-6 md:gap-7">
@@ -113,18 +113,6 @@ export default async function DashboardPage() {
             <Button asChild size="sm">
               <Link href="/dashboard/create-medicine">Додати ліки</Link>
             </Button>
-            <Badge
-              variant="outline"
-              className="border-amber-300 text-amber-800 dark:border-amber-500/40 dark:text-amber-200"
-            >
-              Закінчуються: {lowStockCount}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-orange-300 text-orange-800 dark:border-orange-500/40 dark:text-orange-200"
-            >
-              Скоро термін: {expiringSoonCount}
-            </Badge>
           </div>
         </div>
 
@@ -154,7 +142,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <MedicineBentoGrid medicines={medicines} />
+          <MedicineInventoryPanel medicines={medicines} />
         )}
       </section>
     </div>

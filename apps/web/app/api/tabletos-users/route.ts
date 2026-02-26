@@ -8,7 +8,7 @@ import {
 } from "@/lib/backend/http"
 import { createTabletosUserRequestSchema } from "@/lib/medicines/contracts"
 
-export async function GET() {
+export async function GET(request: Request) {
   const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
   if (!token) {
     return NextResponse.json(
@@ -18,7 +18,18 @@ export async function GET() {
   }
 
   try {
-    const response = await fetchBackend("/tabletos-users", {
+    const requestUrl = new URL(request.url)
+    const params = new URLSearchParams()
+    for (const key of ["search", "effect", "sort", "showExpired"] as const) {
+      const value = requestUrl.searchParams.get(key)?.trim()
+      if (value) params.set(key, value)
+    }
+
+    const backendPath = params.toString()
+      ? `/tabletos-users?${params.toString()}`
+      : "/tabletos-users"
+
+    const response = await fetchBackend(backendPath, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
