@@ -11,9 +11,10 @@ export class CreateCourseDto {
 
   @IsInt()
   qtyDay: number;
-
-  @IsInt()
-  qtyWeek: number;
+  
+  @IsString()
+  @IsNotEmpty()
+  startDate: string; // Використовуємо string, бо це дата у форматі ISO (наприклад, "2024-06-01")
 
   @IsString()
   @IsOptional()
