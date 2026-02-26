@@ -39,8 +39,8 @@ model courses {
   Id             BigInt @id @default(autoincrement())
   Name_doctor    String @db.VarChar(2044)
   Period_courses Int    @db.SmallInt
+  Start_date     DateTime @default(now()) @db.Date
   Quantity_day   Int    @db.SmallInt
-  Quantity_week  Int    @db.SmallInt
   Description   String? @db.VarChar(2044)
 
   users_id    BigInt
