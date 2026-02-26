@@ -8,7 +8,6 @@ import {
 } from "@/lib/client-api/medicines.mappers"
 import {
   apiCourseListSchema,
-  apiTabletoListSchema,
   apiTabletoSchema,
   apiTabletosUserListSchema,
   type MedicinePreviewResponseContract,
@@ -36,6 +35,13 @@ export interface MedicinePreviewRequest {
   url: string
 }
 export type MedicinePreviewResponse = MedicinePreviewResponseContract
+
+export interface GetMedicinesQuery {
+  search?: string
+  effect?: string
+  sort?: string
+  showExpired?: boolean
+}
 
 function parseCourseDate(value?: string | null): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined
@@ -173,21 +179,39 @@ export async function createMedicine(
   }
 }
 
-export async function getMedicines(): Promise<MedicineDashboardItem[]> {
-  const [inventoryPayload, catalogPayload] = await Promise.all([
-    fetchApiJson<unknown>("/api/tabletos-users"),
-    fetchApiJson<unknown>("/api/tabletos"),
-  ])
+function toMedicinesQueryString(query?: GetMedicinesQuery): string {
+  if (!query) return ""
+
+  const params = new URLSearchParams()
+  const search = query.search?.trim()
+  const effect = query.effect?.trim()
+  const sort = query.sort?.trim()
+
+  if (search) params.set("search", search)
+  if (effect) params.set("effect", effect)
+  if (sort) params.set("sort", sort)
+  if (query.showExpired === true) params.set("showExpired", "true")
+
+  const serialized = params.toString()
+  return serialized ? `?${serialized}` : ""
+}
+
+export async function getMedicines(
+  query?: GetMedicinesQuery,
+  options?: { signal?: AbortSignal }
+): Promise<MedicineDashboardItem[]> {
+  const queryString = toMedicinesQueryString(query)
+  const inventoryPayload = await fetchApiJson<unknown>(
+    `/api/tabletos-users${queryString}`,
+    { signal: options?.signal }
+  )
 
   const parsedInventory = apiTabletosUserListSchema.safeParse(inventoryPayload)
   if (!parsedInventory.success) {
     throw new Error("Бекенд повернув некоректний список упаковок користувача.")
   }
 
-  const parsedCatalog = apiTabletoListSchema.safeParse(catalogPayload)
-  const tabletoCatalog = parsedCatalog.success ? parsedCatalog.data : []
-
-  return mapTabletosUsersToDashboardItems(parsedInventory.data, tabletoCatalog)
+  return mapTabletosUsersToDashboardItems(parsedInventory.data, [])
 }
 
 export async function getMedicineById(id: MedicineId): Promise<Medicine | null> {

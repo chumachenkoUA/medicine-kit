@@ -31,7 +31,7 @@ export class TabletosUsersService {
     const whereCondition: any = {
       tabletos: {
         ...(search && { Name: { contains: search, mode: 'insensitive' } }),
-        ...(effect && { Effect: { contains: effect, mode: 'insensitive' } }),
+        ...(effect && { Effects: { contains: effect, mode: 'insensitive' } }),
       }
     };
 

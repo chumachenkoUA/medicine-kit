@@ -1,11 +1,27 @@
 import { z } from "zod"
 
+const optionalTextSchema = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((value) => {
+    if (typeof value !== "string") return undefined
+    return value.trim() || undefined
+  })
+
+function pickFirstText(...values: Array<string | undefined>): string | undefined {
+  return values.find((value) => typeof value === "string" && value.trim().length > 0)
+}
+
 export const apiTabletoSchema = z.object({
   Id: z.union([z.number(), z.string()]),
   Name: z.string(),
   Description: z.string().nullish(),
   Format: z.string(),
   Quantity: z.coerce.number().nonnegative(),
+  imageUrl: optionalTextSchema,
+  photo: optionalTextSchema,
+  Photo: optionalTextSchema,
 })
 
 export const apiTabletoListSchema = z.array(apiTabletoSchema)
@@ -65,18 +81,6 @@ export const createTabletosUserRequestSchema = z.object({
 })
 
 const apiIdLikeSchema = z.union([z.number(), z.string()])
-const optionalTextSchema = z
-  .string()
-  .trim()
-  .nullish()
-  .transform((value) => {
-    if (typeof value !== "string") return undefined
-    return value.trim() || undefined
-  })
-
-function pickFirstText(...values: Array<string | undefined>): string | undefined {
-  return values.find((value) => typeof value === "string" && value.trim().length > 0)
-}
 
 export const medicineSearchResultSchema = z
   .object({

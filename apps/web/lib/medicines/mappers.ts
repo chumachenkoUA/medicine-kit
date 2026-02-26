@@ -6,6 +6,17 @@ import type {
   CreateTabletoRequest,
 } from "@/lib/medicines/contracts"
 
+function getTabletoImageUrl(item?: ApiTableto | null): string | undefined {
+  if (!item) return undefined
+  const imageUrl = item.imageUrl?.trim()
+  if (imageUrl) return imageUrl
+  const photo = item.photo?.trim()
+  if (photo) return photo
+  const photoUpper = item.Photo?.trim()
+  if (photoUpper) return photoUpper
+  return undefined
+}
+
 export function mapTabletoToDashboardItem(item: ApiTableto): MedicineDashboardItem {
   const id = String(item.Id)
   const quantity = Number(item.Quantity) || 0
@@ -13,6 +24,7 @@ export function mapTabletoToDashboardItem(item: ApiTableto): MedicineDashboardIt
   return {
     id,
     name: item.Name,
+    imageUrl: getTabletoImageUrl(item),
     description: item.Description ?? "",
     form: item.Format,
     stockLabel: `${quantity} табл.`,
@@ -30,6 +42,7 @@ export function mapTabletoToMedicine(item: ApiTableto): Medicine {
     name: item.Name,
     description: item.Description ?? "",
     form: item.Format,
+    imageUrl: getTabletoImageUrl(item),
     packages: [],
   }
 }
@@ -82,6 +95,7 @@ export function mapTabletosUsersToDashboardItems(
       groups.set(tabletoId, {
         id: tabletoId,
         name: tabletoMeta?.Name ?? `Препарат #${tabletoId}`,
+        imageUrl: getTabletoImageUrl(tabletoMeta),
         description: tabletoMeta?.Description ?? "",
         form: tabletoMeta?.Format ?? "Невідомо",
         stockLabel: `${quantity} табл.`,

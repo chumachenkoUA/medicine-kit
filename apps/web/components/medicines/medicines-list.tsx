@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useDebouncedValue } from "@/components/medicines/hooks/use-debounced-value"
+import { getMedicines } from "@/lib/client-api/medicines"
 import { formatDate } from "@/lib/date"
 import type { MedicineDashboardItem } from "@/types/medicine"
 
@@ -28,45 +31,35 @@ interface MedicinesListProps {
   medicines: MedicineDashboardItem[]
 }
 
-type SortKey = "name" | "stock-asc" | "stock-desc" | "expiry"
+type SortKey = "name-asc" | "name-desc" | "stock-asc" | "expiry"
+type BackendSort = "name_asc" | "name_desc" | "count_asc" | "date_asc"
 
-function toExpiryTime(value?: string) {
-  if (!value) return Number.POSITIVE_INFINITY
-  const time = new Date(value).getTime()
-  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+function mapSortKeyToBackendSort(value: SortKey): BackendSort {
+  if (value === "name-asc") return "name_asc"
+  if (value === "name-desc") return "name_desc"
+  if (value === "stock-asc") return "count_asc"
+  return "date_asc"
 }
 
 export function MedicinesList({ medicines }: MedicinesListProps) {
   const [query, setQuery] = useState("")
-  const [sort, setSort] = useState<SortKey>("name")
+  const [sort, setSort] = useState<SortKey>("name-asc")
+  const debouncedQuery = useDebouncedValue(query.trim(), 350)
+  const backendSort = mapSortKeyToBackendSort(sort)
 
-  const filtered = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
+  const medicinesQuery = useQuery<MedicineDashboardItem[]>({
+    queryKey: ["medicines-list", debouncedQuery, backendSort],
+    queryFn: ({ signal }) =>
+      getMedicines({
+        search: debouncedQuery || undefined,
+        sort: backendSort,
+      }, { signal }),
+    placeholderData: medicines,
+    staleTime: 30_000,
+    retry: 1,
+  })
 
-    const next = medicines.filter((item) => {
-      if (!normalizedQuery) return true
-
-      return [item.name, item.form, item.description].some((value) =>
-        value.toLowerCase().includes(normalizedQuery)
-      )
-    })
-
-    next.sort((a, b) => {
-      switch (sort) {
-        case "stock-asc":
-          return a.stockCount - b.stockCount
-        case "stock-desc":
-          return b.stockCount - a.stockCount
-        case "expiry":
-          return toExpiryTime(a.nearestExpiryAt) - toExpiryTime(b.nearestExpiryAt)
-        case "name":
-        default:
-          return a.name.localeCompare(b.name)
-      }
-    })
-
-    return next
-  }, [medicines, query, sort])
+  const filtered = medicinesQuery.data ?? medicines
 
   return (
     <Card className="border-border/70 bg-card/95 dark:bg-card">
@@ -84,9 +77,9 @@ export function MedicinesList({ medicines }: MedicinesListProps) {
               <SelectValue placeholder="Сортування" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="name">За назвою</SelectItem>
+              <SelectItem value="name-asc">За назвою (А-Я)</SelectItem>
+              <SelectItem value="name-desc">За назвою (Я-А)</SelectItem>
               <SelectItem value="stock-asc">Залишок: від меншого</SelectItem>
-              <SelectItem value="stock-desc">Залишок: від більшого</SelectItem>
               <SelectItem value="expiry">За найближчим терміном</SelectItem>
             </SelectContent>
           </Select>
@@ -96,6 +89,12 @@ export function MedicinesList({ medicines }: MedicinesListProps) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Усього: {medicines.length}</Badge>
           <Badge variant="outline">Після фільтра: {filtered.length}</Badge>
+          {medicinesQuery.isFetching ? (
+            <Badge variant="outline">Оновлення...</Badge>
+          ) : null}
+          {medicinesQuery.error ? (
+            <Badge variant="destructive">Помилка пошуку</Badge>
+          ) : null}
         </div>
 
         <Table>

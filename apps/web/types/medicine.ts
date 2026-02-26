@@ -7,12 +7,14 @@ export interface Medicine {
   name: string
   description: string
   form: string
+  imageUrl?: string
   packages: MedicinePackage[]
 }
 
 export interface MedicineListItem {
   id: MedicineId
   name: string
+  imageUrl?: string
   stockLabel: string
   stockCount: number
   stockCapacity: number
