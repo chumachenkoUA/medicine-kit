@@ -45,7 +45,7 @@ function withDeletedAuthCookie(response: NextResponse): NextResponse {
   return response
 }
 
-export function proxy(request: NextRequest) {
+function handleProxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
   const hasValidToken = Boolean(token) && !isTokenExpired(token)
@@ -72,6 +72,9 @@ export function proxy(request: NextRequest) {
 
   return withDeletedAuthCookie(NextResponse.redirect(new URL("/login", request.url)))
 }
+
+export { handleProxy as proxy }
+export default handleProxy
 
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
