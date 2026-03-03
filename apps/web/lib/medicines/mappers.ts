@@ -74,6 +74,15 @@ function getBestTabletoMeta(
   )
 }
 
+function resolveInitialPackCount(currentCount: number, tabletoMeta: ApiTableto | null): number {
+  const normalizedCurrent = Number.isFinite(currentCount) && currentCount > 0 ? currentCount : 0
+  const tabletoQuantity = Number(tabletoMeta?.Quantity ?? 0)
+  if (Number.isFinite(tabletoQuantity) && tabletoQuantity > 0) {
+    return Math.max(normalizedCurrent, tabletoQuantity)
+  }
+  return Math.max(normalizedCurrent, 1)
+}
+
 export function mapTabletosUsersToDashboardItems(
   entries: ApiTabletosUser[],
   tabletoCatalog: ApiTableto[]
@@ -85,6 +94,7 @@ export function mapTabletosUsersToDashboardItems(
     const tabletoId = getEntryTabletoId(entry)
     const tabletoMeta = getBestTabletoMeta(entry, tabletoById)
     const quantity = Number(entry.Count) || 0
+    const initialPackCount = resolveInitialPackCount(quantity, tabletoMeta)
     const expiresAt =
       toIsoDate(entry.Expiration_date) ??
       toIsoDate(entry.Create_date) ??
@@ -100,13 +110,14 @@ export function mapTabletosUsersToDashboardItems(
         form: tabletoMeta?.Format ?? "Невідомо",
         stockLabel: `${quantity} табл.`,
         stockCount: quantity,
-        stockCapacity: quantity,
+        stockCapacity: initialPackCount,
         stockUnit: "табл.",
         nearestExpiryAt: expiresAt,
         packages: [
           {
             id: String(entry.Id),
             tabletsInPack: quantity,
+            initialTabletsInPack: initialPackCount,
             expiresAt,
           },
         ],
@@ -115,11 +126,12 @@ export function mapTabletosUsersToDashboardItems(
     }
 
     existing.stockCount += quantity
-    existing.stockCapacity += quantity
+    existing.stockCapacity += initialPackCount
     existing.stockLabel = `${existing.stockCount} табл.`
     existing.packages.push({
       id: String(entry.Id),
       tabletsInPack: quantity,
+      initialTabletsInPack: initialPackCount,
       expiresAt,
     })
     if (
@@ -140,6 +152,11 @@ export function mapTabletosUsersToPackagesByMedicineId(
   return entries
     .filter((entry) => getEntryTabletoId(entry) === medicineId)
     .map((entry) => ({
+      // Якщо немає окремого поля initial count, беремо еталон із tableto.Quantity.
+      initialTabletsInPack: Math.max(
+        Number(entry.Count) || 0,
+        Number(entry.tabletos?.Quantity ?? entry.tableto?.Quantity ?? 0) || 0
+      ),
       id: String(entry.Id),
       tabletsInPack: Number(entry.Count) || 0,
       expiresAt:
@@ -152,10 +169,15 @@ export function mapTabletosUsersToPackagesByMedicineId(
 export function toCreateTabletoRequest(
   payload: CreateMedicinePayload
 ): CreateTabletoRequest {
-  const quantity = payload.packages.reduce(
+  const summedQuantity = payload.packages.reduce(
     (acc, item) => acc + item.tabletsInPack,
     0
   )
+  const fallbackQuantity =
+    Number.isInteger(payload.totalQuantity) && Number(payload.totalQuantity) > 0
+      ? Number(payload.totalQuantity)
+      : 1
+  const quantity = summedQuantity > 0 ? summedQuantity : fallbackQuantity
 
   return {
     name: payload.name,

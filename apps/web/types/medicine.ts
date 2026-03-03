@@ -31,6 +31,7 @@ export interface MedicineDashboardItem extends MedicineListItem {
 export interface MedicinePackage {
   id: string
   tabletsInPack: number
+  initialTabletsInPack?: number
   expiresAt: string
   batchNumber?: string
 }
@@ -40,9 +41,11 @@ export type CourseStatus = "active" | "planned" | "completed" | "paused"
 export interface MedicineCourse {
   id: string
   medicineId: MedicineId
+  doctorName: string
   title: string
   dosage: string
   frequency: string
+  qtyPerDay: number
   times: string[]
   periodDays: number
   periodStart?: string

@@ -37,26 +37,31 @@ export function ProfileSettingsForm({
     <Card className="border-border/70 bg-card/95 dark:bg-card">
       <CardHeader className="pb-2">
         <CardTitle>Персональні дані</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Онови базову інформацію профілю. Зміни поки зберігаються локально.
+        </p>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="profile-name">Імʼя та прізвище</Label>
-            <Input
-              id="profile-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="profile-name">Імʼя та прізвище</Label>
+              <Input
+                id="profile-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="profile-email">Email</Label>
-            <Input
-              id="profile-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="profile-email">Email</Label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

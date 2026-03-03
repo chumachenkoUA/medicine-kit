@@ -32,6 +32,9 @@ export function NotificationSettings() {
     <Card className="border-border/70 bg-card/95 dark:bg-card">
       <CardHeader className="pb-2">
         <CardTitle>Нагадування</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Керуй каналом сповіщень і тихими годинами, щоб не пропускати прийом ліків.
+        </p>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">

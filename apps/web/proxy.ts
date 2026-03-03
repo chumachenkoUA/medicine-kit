@@ -48,7 +48,7 @@ function withDeletedAuthCookie(response: NextResponse): NextResponse {
 function handleProxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
-  const hasValidToken = Boolean(token) && !isTokenExpired(token)
+  const hasValidToken = token ? !isTokenExpired(token) : false
 
   if (AUTH_PATHS.has(pathname)) {
     if (hasValidToken) {
