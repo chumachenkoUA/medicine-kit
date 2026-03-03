@@ -6,20 +6,26 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface SearchStepProps {
+  title?: string
   query: string
   onQueryChange: (value: string) => void
   results: SearchMedicineResult[]
   isLoading: boolean
   errorMessage?: string | null
+  emptyMessage?: string
+  pickButtonLabel?: string
   onPickResult: (item: SearchMedicineResult) => void
 }
 
 export function SearchStep({
+  title,
   query,
   onQueryChange,
   results,
   isLoading,
   errorMessage,
+  emptyMessage,
+  pickButtonLabel,
   onPickResult,
 }: SearchStepProps) {
   const normalizedQuery = query.trim()
@@ -29,7 +35,7 @@ export function SearchStep({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Крок 1. Пошук у наявній базі</CardTitle>
+        <CardTitle className="text-lg">{title ?? "Крок 1. Пошук у наявній базі"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <Label htmlFor="medicine-search-input" className="sr-only">
@@ -71,7 +77,7 @@ export function SearchStep({
                   type="button"
                   onClick={() => onPickResult(item)}
                 >
-                  Обрати наявні
+                  {pickButtonLabel ?? "Обрати наявні"}
                 </Button>
               </div>
             ))}
@@ -80,7 +86,8 @@ export function SearchStep({
 
         {showEmptyState ? (
           <p className="text-sm text-muted-foreground">
-            За цим запитом нічого не знайдено. Спробуй іншу назву або парсинг з URL.
+            {emptyMessage ??
+              "За цим запитом нічого не знайдено. Спробуй іншу назву або парсинг з URL."}
           </p>
         ) : null}
       </CardContent>

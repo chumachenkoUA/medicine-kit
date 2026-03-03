@@ -1,10 +1,12 @@
-import { Loader2, Plus, Trash2 } from "lucide-react"
+import Image from "next/image"
+import { AlertTriangle, Copy, Loader2, Package2, Plus, Trash2 } from "lucide-react"
 import type {
   FieldArrayWithId,
   FieldErrors,
   UseFormRegister,
 } from "react-hook-form"
 import type { CreateMedicineFormValues } from "@/lib/medicines/create-form"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -15,7 +17,9 @@ interface ConfirmStepProps {
   register: UseFormRegister<CreateMedicineFormValues>
   errors: FieldErrors<CreateMedicineFormValues>
   packageFields: FieldArrayWithId<CreateMedicineFormValues, "packages", "id">[]
+  packages: CreateMedicineFormValues["packages"]
   onAddPackage: () => void
+  onDuplicateLastPackage: () => void
   onRemovePackage: (index: number) => void
   imagePreviewUrl?: string
   imageAlt?: string
@@ -33,7 +37,9 @@ export function ConfirmStep({
   register,
   errors,
   packageFields,
+  packages,
   onAddPackage,
+  onDuplicateLastPackage,
   onRemovePackage,
   imagePreviewUrl,
   imageAlt,
@@ -45,6 +51,15 @@ export function ConfirmStep({
   const packagesRootError = Array.isArray(errors.packages)
     ? null
     : readErrorMessage(errors.packages?.message)
+  const totalTablets = packages.reduce((sum, pack) => {
+    const count = Number(pack.tabletsInPack)
+    if (!Number.isFinite(count) || count <= 0) return sum
+    return sum + count
+  }, 0)
+  const soonestExpiry = packages
+    .map((pack) => pack.expiresAt)
+    .filter((value) => typeof value === "string" && value.trim().length > 0)
+    .sort()[0]
 
   return (
     <Card>
@@ -103,10 +118,12 @@ export function ConfirmStep({
         {imagePreviewUrl ? (
           <div className="space-y-2">
             <p className="text-sm font-medium">Прев’ю зображення</p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={imagePreviewUrl}
               alt={imageAlt || "Попередній перегляд зображення ліків"}
+              width={128}
+              height={128}
+              unoptimized
               className="h-32 w-32 rounded-lg border object-cover"
             />
           </div>
@@ -116,11 +133,27 @@ export function ConfirmStep({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="font-medium">Упаковки</p>
-            <Button variant="outline" size="sm" type="button" onClick={onAddPackage}>
-              <Plus className="size-4" />
-              Додати упаковку
-            </Button>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">Упаковки</p>
+              <Badge variant="outline">Кількість: {packageFields.length}</Badge>
+              <Badge variant="outline">Усього таблеток: {totalTablets}</Badge>
+              {soonestExpiry ? (
+                <Badge variant="outline" className="gap-1.5">
+                  <AlertTriangle className="size-3.5" />
+                  Найближчий термін: {soonestExpiry}
+                </Badge>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" type="button" onClick={onDuplicateLastPackage}>
+                <Copy className="size-4" />
+                Дублювати останню
+              </Button>
+              <Button variant="outline" size="sm" type="button" onClick={onAddPackage}>
+                <Plus className="size-4" />
+                Додати упаковку
+              </Button>
+            </div>
           </div>
 
           {packagesRootError ? <p className="text-xs text-destructive">{packagesRootError}</p> : null}
@@ -131,7 +164,16 @@ export function ConfirmStep({
               : undefined
 
             return (
-              <div key={field.id} className="grid gap-3 rounded-lg border p-3 md:grid-cols-4">
+              <div key={field.id} className="space-y-3 rounded-xl border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Упаковка #{index + 1}</p>
+                  <Badge variant="secondary" className="gap-1">
+                    <Package2 className="size-3.5" />
+                    {Number(packages[index]?.tabletsInPack) || 0} табл.
+                  </Badge>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label htmlFor={`pack-tablets-${index}`}>Таблеток у пачці</Label>
                   <Input
@@ -175,6 +217,7 @@ export function ConfirmStep({
                   >
                     <Trash2 className="size-4" />
                   </Button>
+                </div>
                 </div>
               </div>
             )

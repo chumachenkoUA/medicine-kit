@@ -32,17 +32,24 @@ const statusIconMap: Record<UpcomingDose["status"], typeof Clock3> = {
 export default async function DashboardPage() {
   let dueNow: UpcomingDose[] = []
   let medicines: MedicineDashboardItem[] = []
-  let courses: MedicineCourse[] = []
   let medicinesError: string | null = null
+  let courses: MedicineCourse[] = []
+  let coursesError: string | null = null
 
   try {
-    ;[medicines, courses] = await Promise.all([
-      getMedicines({ sort: "name_asc" }),
-      getMedicineCourses(),
-    ])
-    dueNow = computeUpcomingDoses(courses, medicines)
+    medicines = await getMedicines({ sort: "name_asc" })
   } catch {
     medicinesError = "Спробуй оновити сторінку пізніше."
+  }
+
+  try {
+    courses = await getMedicineCourses()
+  } catch {
+    coursesError = "Розклад тимчасово недоступний."
+  }
+
+  if (!coursesError && medicines.length > 0) {
+    dueNow = computeUpcomingDoses(courses, medicines)
   }
 
   return (
@@ -55,9 +62,15 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-semibold md:text-xl">
             Що прийняти зараз або найближчим часом
           </h2>
-          <Badge variant="outline" className="hidden md:inline-flex">
-            Потрібна увага: {dueNow.length}
-          </Badge>
+          {coursesError ? (
+            <Badge variant="destructive" className="hidden md:inline-flex">
+              {coursesError}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="hidden md:inline-flex">
+              Потрібна увага: {dueNow.length}
+            </Badge>
+          )}
         </div>
 
         <div className="grid gap-3 lg:grid-cols-3">
