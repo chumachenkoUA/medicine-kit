@@ -1,5 +1,5 @@
 import { fetchApiJson, fetchApiResponse } from "@/lib/client-api/client"
-import { parseJsonOrThrow } from "@/lib/client-api/http"
+import { getApiErrorMessage, parseJsonOrThrow } from "@/lib/client-api/http"
 import { normalizeClientError } from "@/lib/client-api/errors"
 import {
   mapCreateMedicinePayload,
@@ -10,6 +10,7 @@ import {
   apiCourseListSchema,
   apiTabletoSchema,
   apiTabletosUserListSchema,
+  createCourseRequestSchema,
   type MedicinePreviewResponseContract,
   type MedicineSearchResultContract,
 } from "@/lib/medicines/contracts"
@@ -43,11 +44,53 @@ export interface GetMedicinesQuery {
   showExpired?: boolean
 }
 
+export interface CreateMedicineCoursePayload {
+  nameDoctor: string
+  period: number
+  qtyDay: number
+  startDate: string
+  description?: string
+  tabletoId: number
+}
+
+export interface UpdateMedicineCoursePayload {
+  nameDoctor?: string
+  period?: number
+  qtyDay?: number
+  startDate?: string
+  description?: string
+  tabletoId?: number
+}
+
+export interface UpdateMedicinePackagePayload {
+  count: number
+}
+
+export interface CreateMedicinePackagePayload {
+  tabletoId: number
+  count: number
+  expirationDate: string
+}
+
 function parseCourseDate(value?: string | null): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return undefined
   return date.toISOString()
+}
+
+function computeCourseEndDate(
+  periodStart?: string,
+  periodDays = 1
+): string | undefined {
+  if (!periodStart) return undefined
+  const start = new Date(periodStart)
+  if (Number.isNaN(start.getTime())) return undefined
+
+  const normalizedPeriodDays = Math.max(1, periodDays)
+  const end = new Date(start)
+  end.setDate(start.getDate() + normalizedPeriodDays - 1)
+  return end.toISOString()
 }
 
 function normalizeCourseStatus(value?: string | null): MedicineCourse["status"] {
@@ -176,6 +219,25 @@ export async function createMedicine(
     return created
   } catch (error) {
     throw normalizeClientError(error, "Не вдалося створити препарат.")
+  }
+}
+
+export async function createMedicinePackage(
+  payload: CreateMedicinePackagePayload
+): Promise<void> {
+  try {
+    await fetchApiJson<unknown>("/api/tabletos-users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tabletoId: payload.tabletoId,
+        count: payload.count,
+        expirationDate: payload.expirationDate,
+        createDate: new Date().toISOString(),
+      }),
+    })
+  } catch (error) {
+    throw normalizeClientError(error, "Не вдалося додати упаковку препарату.")
   }
 }
 
@@ -337,6 +399,101 @@ export async function getMedicineCoursesById(
   return courses.filter((course) => course.medicineId === id)
 }
 
+export async function createMedicineCourse(
+  payload: CreateMedicineCoursePayload
+): Promise<{ id: string }> {
+  const parsed = createCourseRequestSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error("Некоректні дані курсу.")
+  }
+
+  const response = await fetchApiResponse("/api/courses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...parsed.data,
+      description: parsed.data.description?.trim() || undefined,
+    }),
+  })
+
+  if (!response.ok) {
+    let errorPayload: unknown = null
+    try {
+      errorPayload = await parseJsonOrThrow(response)
+    } catch {
+      errorPayload = null
+    }
+
+    throw new Error(getApiErrorMessage(errorPayload, "Не вдалося створити курс."))
+  }
+
+  const json = await parseJsonOrThrow<Record<string, unknown>>(response)
+  const id = json?.Id ?? json?.id
+  if (id == null) return { id: "" }
+  return { id: String(id) }
+}
+
+export async function updateMedicineCourse(
+  id: MedicineId,
+  payload: UpdateMedicineCoursePayload
+): Promise<void> {
+  const response = await fetchApiResponse(`/api/courses/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+
+  if (response.ok) return
+
+  let errorPayload: unknown = null
+  try {
+    errorPayload = await parseJsonOrThrow(response)
+  } catch {
+    errorPayload = null
+  }
+
+  throw new Error(getApiErrorMessage(errorPayload, "Не вдалося оновити курс."))
+}
+
+export async function deleteMedicineCourse(id: MedicineId): Promise<void> {
+  const response = await fetchApiResponse(`/api/courses/${id}`, {
+    method: "DELETE",
+  })
+
+  if (response.ok) return
+
+  let errorPayload: unknown = null
+  try {
+    errorPayload = await parseJsonOrThrow(response)
+  } catch {
+    errorPayload = null
+  }
+
+  throw new Error(getApiErrorMessage(errorPayload, "Не вдалося видалити курс."))
+}
+
+export async function updateMedicinePackage(
+  id: string,
+  payload: UpdateMedicinePackagePayload
+): Promise<void> {
+  const response = await fetchApiResponse(`/api/tabletos-users/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+
+  if (response.ok) return
+
+  let errorPayload: unknown = null
+  try {
+    errorPayload = await parseJsonOrThrow(response)
+  } catch {
+    errorPayload = null
+  }
+
+  throw new Error(getApiErrorMessage(errorPayload, "Не вдалося оновити упаковку."))
+}
+
 export async function getMedicineCourses(): Promise<MedicineCourse[]> {
   const payload = await fetchApiJson<unknown>("/api/courses")
   const parsed = apiCourseListSchema.safeParse(payload)
@@ -347,18 +504,23 @@ export async function getMedicineCourses(): Promise<MedicineCourse[]> {
   return parsed.data.map((course) => {
     const periodDays = Math.max(1, Number(course.Period_courses) || 1)
     const periodStart = parseCourseDate(course.Start_date ?? course.startDate)
-    const periodEnd = parseCourseDate(course.End_date ?? course.endDate)
+    const periodEnd =
+      parseCourseDate(course.End_date ?? course.endDate) ??
+      computeCourseEndDate(periodStart, periodDays)
     const status = normalizeCourseStatus(course.Status ?? course.status)
+    const quantityDay = Number(course.Quantity_day) || 1
 
     return {
       id: String(course.Id),
       medicineId: String(course.tabletos_id),
+      doctorName: course.Name_doctor,
       title: course.Description?.trim()
         ? course.Description
         : `Курс від ${course.Name_doctor}`,
-      dosage: `${course.Quantity_day} табл./день`,
-      frequency: `${course.Quantity_week} дн./тижд.`,
-      times: buildTimesByQuantityDay(Number(course.Quantity_day) || 1),
+      dosage: `${quantityDay} табл./день`,
+      frequency: `${quantityDay} раз/день`,
+      qtyPerDay: quantityDay,
+      times: buildTimesByQuantityDay(quantityDay),
       periodDays,
       periodStart,
       periodEnd,

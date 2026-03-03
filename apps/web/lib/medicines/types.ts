@@ -4,6 +4,7 @@ export interface CreateMedicinePayload {
   form: string
   imageUrl?: string
   sourceUrl: string
+  totalQuantity?: number
   packages: Array<{
     tabletsInPack: number
     expiresAt: string

@@ -70,6 +70,10 @@ function readUserIdFromPayload(payload: Record<string, unknown> | null): number 
   return null
 }
 
+function toIsoDateTimeFromDateInput(value: string): string {
+  return new Date(`${value}T00:00:00.000Z`).toISOString()
+}
+
 export async function POST(request: Request) {
   const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
   if (!token) {
@@ -111,6 +115,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         ...parsed.data,
+        expirationDate: toIsoDateTimeFromDateInput(parsed.data.expirationDate),
         userId,
       }),
     })

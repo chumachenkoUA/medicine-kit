@@ -44,7 +44,7 @@ export const apiCourseSchema = z.object({
   Name_doctor: z.string(),
   Period_courses: z.coerce.number().int().positive(),
   Quantity_day: z.coerce.number().int().positive(),
-  Quantity_week: z.coerce.number().int().positive(),
+  Quantity_week: z.coerce.number().int().positive().optional(),
   Description: z.string().nullish(),
   Start_date: z.string().nullish(),
   End_date: z.string().nullish(),
@@ -78,6 +78,15 @@ export const createTabletosUserRequestSchema = z.object({
   count: z.coerce.number().int().positive(),
   expirationDate: z.string().date(),
   createDate: z.string().datetime(),
+})
+
+export const createCourseRequestSchema = z.object({
+  nameDoctor: z.string().trim().min(1),
+  period: z.coerce.number().int().positive(),
+  qtyDay: z.coerce.number().int().positive(),
+  startDate: z.string().date(),
+  description: z.string().trim().optional(),
+  tabletoId: z.coerce.number().int().positive(),
 })
 
 const apiIdLikeSchema = z.union([z.number(), z.string()])
@@ -167,6 +176,7 @@ export type ApiTabletosUser = z.infer<typeof apiTabletosUserSchema>
 export type ApiCourse = z.infer<typeof apiCourseSchema>
 export type CreateTabletoRequest = z.infer<typeof createTabletoRequestSchema>
 export type CreateTabletosUserRequest = z.infer<typeof createTabletosUserRequestSchema>
+export type CreateCourseRequest = z.infer<typeof createCourseRequestSchema>
 export type MedicineSearchResultContract = z.infer<typeof medicineSearchResultSchema>
 export type MedicinePreviewResponseContract = z.infer<typeof medicinePreviewResponseSchema>
 export type CreateMedicineResponseContract = z.infer<typeof createMedicineResponseSchema>
