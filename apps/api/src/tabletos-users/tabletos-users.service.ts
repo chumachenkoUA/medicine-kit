@@ -79,12 +79,20 @@ export class TabletosUsersService {
   }
 
   async update(id: number, updateTabletosUserDto: UpdateTabletosUserDto) {
-    return await({
-      where:{Id:id},
+    const result = await prisma.tabletos_user.update({
+      where: { Id: id },
       data: {
-        Count: updateTabletosUserDto.count,
-        Expiration_date: updateTabletosUserDto.expirationDate,
-  }}) ;
+        ...(typeof updateTabletosUserDto.count === 'number'
+          ? { Count: updateTabletosUserDto.count }
+          : {}),
+        ...(typeof updateTabletosUserDto.expirationDate === 'string'
+          ? { Expiration_date: updateTabletosUserDto.expirationDate }
+          : {}),
+      },
+      include: { tabletos: true },
+    });
+
+    return this.serializeBigInt(result);
   }
 
   async remove(id: number) {

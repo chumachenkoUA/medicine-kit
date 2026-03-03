@@ -4,10 +4,25 @@ import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { Req, UnauthorizedException } from '@nestjs/common';
+import { Request } from 'express';
+
+type AuthenticatedRequest = Request & {
+  user?: {
+    sub?: string | number;
+  };
+};
 
 @Controller('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
+
+  private readUserId(request: AuthenticatedRequest): string | number {
+    const sub = request.user?.sub;
+    if (!sub) throw new UnauthorizedException('Користувач не авторизований.');
+    return sub;
+  }
+
   @UseGuards(AuthGuard)
   @Post()
   create(@Body() createCourseDto: CreateCourseDto) {
@@ -15,8 +30,14 @@ export class CoursesController {
   }
   @UseGuards(AuthGuard)
   @Get()
-  findAll() {
-    return this.coursesService.findAll();
+  findAll(@Req() request: AuthenticatedRequest) {
+    return this.coursesService.findAllByUser(this.readUserId(request));
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('calendar')
+  getCalendar(@Req() request: AuthenticatedRequest) {
+    return this.coursesService.getCalendarEventsByUser(this.readUserId(request));
   }
   @UseGuards(AuthGuard)
   @Get(':id')
