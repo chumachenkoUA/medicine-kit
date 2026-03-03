@@ -7,17 +7,17 @@ import {
   unauthorizedResponse,
 } from "@/app/api/_shared/proxy"
 
-interface RouteParams {
+interface CourseRouteParams {
   params: Promise<{ id: string }>
 }
 
 function toBackendPath(id: string): string | null {
   const normalized = parseNumericId(id)
   if (!normalized) return null
-  return `/tabletos-users/${normalized}`
+  return `/courses/${normalized}/dose-log`
 }
 
-export async function PATCH(request: Request, { params }: RouteParams) {
+export async function POST(request: Request, { params }: CourseRouteParams) {
   const token = await readAccessToken()
   if (!token) {
     return unauthorizedResponse()
@@ -26,7 +26,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   const { id } = await params
   const backendPath = toBackendPath(id)
   if (!backendPath) {
-    return badRequestResponse("Некоректний ID упаковки.")
+    return badRequestResponse("Некоректний ID курсу.")
   }
 
   const parsedBody = await parseJsonBody(request)
@@ -34,10 +34,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   return forwardBackendRequest({
     path: backendPath,
-    method: "PATCH",
+    method: "POST",
     token,
     body: parsedBody.data,
-    backendErrorMessage: "Не вдалося оновити упаковку.",
-    networkErrorMessage: "Не вдалося звернутися до сервісу упаковок.",
+    backendErrorMessage: "Не вдалося оновити статус дози.",
+    networkErrorMessage: "Не вдалося звернутися до сервісу курсів.",
   })
 }
