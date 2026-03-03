@@ -1,23 +1,41 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { CalendarClock, Clock3, Pill } from "lucide-react"
+import { toast } from "sonner"
 
 import { CourseActions } from "@/components/schedule/course-actions"
 import { CourseProgressCalendar } from "@/components/schedule/course-progress-calendar"
 import { CreateCourseForm } from "@/components/schedule/create-course-form"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { formatDate } from "@/lib/date"
 import {
   computeUpcomingDoses,
+  computeUpcomingDosesFromCalendarEvents,
   createMedicineCourse,
   deleteMedicineCourse,
+  getCourseCalendar,
+  getCourseStockWarnings,
   type CreateMedicineCoursePayload,
   type UpdateMedicineCoursePayload,
+  type UpsertCourseDoseLogPayload,
   updateMedicineCourse,
+  upsertCourseDoseLog,
 } from "@/lib/client-api/medicines"
-import type { MedicineCourse, MedicineDashboardItem } from "@/types/medicine"
+import type {
+  CourseCalendarEvent,
+  CourseStockWarning,
+  MedicineCourse,
+  MedicineDashboardItem,
+} from "@/types/medicine"
 
 interface ScheduleInteractiveProps {
   medicines: MedicineDashboardItem[]
@@ -84,7 +102,19 @@ function applyCoursePatch(
     periodDays,
     periodStart,
     periodEnd,
-    times: toCourseTimes(qtyPerDay),
+    status: payload.status ?? source.status,
+    times: payload.doseTimes?.length ? payload.doseTimes : toCourseTimes(qtyPerDay),
+  }
+}
+
+function buildCalendarRange(): { from: string; to: string } {
+  const from = new Date()
+  from.setDate(from.getDate() - 30)
+  const to = new Date()
+  to.setDate(to.getDate() + 60)
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
   }
 }
 
@@ -93,11 +123,47 @@ export function ScheduleInteractive({
   initialCourses,
 }: ScheduleInteractiveProps) {
   const [courses, setCourses] = useState(initialCourses)
+  const [calendarEvents, setCalendarEvents] = useState<CourseCalendarEvent[]>([])
+  const [stockWarnings, setStockWarnings] = useState<CourseStockWarning[]>([])
 
-  const upcomingDoses = useMemo(
+  const loadCalendarData = useCallback(async () => {
+    const range = buildCalendarRange()
+    try {
+      const [events, warnings] = await Promise.all([
+        getCourseCalendar(range),
+        getCourseStockWarnings(),
+      ])
+      setCalendarEvents(events)
+      setStockWarnings(warnings)
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Не вдалося завантажити календар курсу."
+      toast.error(message)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadCalendarData()
+    }, 0)
+
+    return () => clearTimeout(timer)
+  }, [loadCalendarData, courses.length])
+
+  const fallbackUpcomingDoses = useMemo(
     () => computeUpcomingDoses(courses, medicines),
     [courses, medicines]
   )
+
+  const upcomingDoses = useMemo(() => {
+    if (calendarEvents.length > 0) {
+      return computeUpcomingDosesFromCalendarEvents(calendarEvents)
+    }
+    return fallbackUpcomingDoses
+  }, [calendarEvents, fallbackUpcomingDoses])
+
   const medicineNameById = useMemo(
     () => new Map(medicines.map((medicine) => [medicine.id, medicine.name])),
     [medicines]
@@ -107,11 +173,17 @@ export function ScheduleInteractive({
     [medicineNameById]
   )
 
+  const warningByCourseId = useMemo(
+    () => new Map(stockWarnings.map((item) => [item.courseId, item])),
+    [stockWarnings]
+  )
+
   const activeCourses = courses.filter((course) => course.status === "active")
   const plannedCourses = courses.filter((course) => course.status === "planned")
   const completedCourses = courses.filter((course) => course.status === "completed")
   const coursesWithDates = courses.filter(hasDateRange)
   const coursesWithoutDatesCount = courses.length - coursesWithDates.length
+  const lowOrEmptyWarnings = stockWarnings.filter((warning) => warning.severity !== "ok")
 
   const handleCreateCourse = async (payload: CreateMedicineCoursePayload) => {
     const tempId = `tmp-${Date.now()}`
@@ -127,11 +199,11 @@ export function ScheduleInteractive({
       dosage: `${qtyPerDay} табл./день`,
       frequency: `${qtyPerDay} раз/день`,
       qtyPerDay,
-      times: toCourseTimes(qtyPerDay),
+      times: payload.doseTimes?.length ? payload.doseTimes : toCourseTimes(qtyPerDay),
       periodDays: payload.period,
       periodStart,
       periodEnd: toCourseEndDate(periodStart, payload.period),
-      status: "planned",
+      status: payload.status ?? "planned",
     }
 
     setCourses((prev) => [optimisticCourse, ...prev])
@@ -142,6 +214,7 @@ export function ScheduleInteractive({
       setCourses((prev) =>
         prev.map((course) => (course.id === tempId ? { ...course, id: created.id } : course))
       )
+      await loadCalendarData()
     } catch (error) {
       setCourses((prev) => prev.filter((course) => course.id !== tempId))
       throw error
@@ -162,6 +235,7 @@ export function ScheduleInteractive({
 
     try {
       await updateMedicineCourse(courseId, payload)
+      await loadCalendarData()
     } catch (error) {
       setCourses((prev) =>
         prev.map((course) => (course.id === courseId ? previousCourse : course))
@@ -179,6 +253,7 @@ export function ScheduleInteractive({
 
     try {
       await deleteMedicineCourse(courseId)
+      await loadCalendarData()
     } catch (error) {
       setCourses((prev) => {
         const next = [...prev]
@@ -187,6 +262,14 @@ export function ScheduleInteractive({
       })
       throw error
     }
+  }
+
+  const handleMarkDose = async (
+    courseId: string,
+    payload: UpsertCourseDoseLogPayload
+  ) => {
+    await upsertCourseDoseLog(courseId, payload)
+    await loadCalendarData()
   }
 
   return (
@@ -203,12 +286,21 @@ export function ScheduleInteractive({
           </CardHeader>
           <CardContent className="space-y-3">
             {upcomingDoses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Найближчих прийомів поки немає.
-                {coursesWithoutDatesCount > 0
-                  ? " Частина курсів не має дат початку/завершення в API."
-                  : ""}
-              </p>
+              <Empty className="gap-3 rounded-lg border border-dashed p-4">
+                <EmptyHeader className="gap-1">
+                  <EmptyMedia variant="icon">
+                    <Clock3 className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle className="text-base">
+                    Найближчих прийомів поки немає
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    {coursesWithoutDatesCount > 0
+                      ? "Частина курсів не має дат початку/завершення в API."
+                      : "Коли зʼявляться події в календарі, вони будуть тут."}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : (
               upcomingDoses.map((dose) => (
                 <div
@@ -244,11 +336,15 @@ export function ScheduleInteractive({
             </div>
             <div className="rounded-lg border p-3 sm:min-h-24">
               <p className="text-sm text-muted-foreground">Події в календарі</p>
-              <p className="text-xl font-semibold">{coursesWithDates.length}</p>
+              <p className="text-xl font-semibold">{calendarEvents.length}</p>
             </div>
             <div className="rounded-lg border p-3 sm:min-h-24">
               <p className="text-sm text-muted-foreground">Завершені</p>
               <p className="text-xl font-semibold">{completedCourses.length}</p>
+            </div>
+            <div className="rounded-lg border p-3 sm:min-h-24">
+              <p className="text-sm text-muted-foreground">Попередження запасу</p>
+              <p className="text-xl font-semibold">{lowOrEmptyWarnings.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -262,14 +358,22 @@ export function ScheduleInteractive({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {coursesWithDates.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Календар недоступний: бекенд поки не повертає дати курсів.
-            </p>
+          {courses.length === 0 ? (
+            <Empty className="gap-3 rounded-lg border border-dashed p-4">
+              <EmptyHeader className="gap-1">
+                <EmptyMedia variant="icon">
+                  <CalendarClock className="size-5" />
+                </EmptyMedia>
+                <EmptyTitle className="text-base">Немає курсів для календаря</EmptyTitle>
+                <EmptyDescription>Створи курс, щоб відслідковувати прийоми по днях.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <CourseProgressCalendar
-              courses={coursesWithDates}
+              courses={courses}
+              events={calendarEvents}
               medicineNameById={medicineNameRecord}
+              onMarkDose={handleMarkDose}
             />
           )}
         </CardContent>
@@ -284,36 +388,41 @@ export function ScheduleInteractive({
         </CardHeader>
         <CardContent className="space-y-3">
           {activeCourses.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Активних курсів поки немає.</p>
+            <Empty className="gap-2 rounded-lg border border-dashed p-4">
+              <EmptyHeader className="gap-1">
+                <EmptyTitle className="text-sm">Активних курсів поки немає</EmptyTitle>
+                <EmptyDescription>Запусти курс зі статусом активний.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
-            activeCourses.map((course) => (
-              <div key={course.id} className="rounded-lg border p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{course.title}</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{course.frequency}</Badge>
-                    <CourseActions
-                      course={course}
-                      medicines={medicines}
-                      onUpdateCourse={handleUpdateCourse}
-                      onDeleteCourse={handleDeleteCourse}
-                    />
+            activeCourses.map((course) => {
+              const warning = warningByCourseId.get(course.id)
+              return (
+                <div key={course.id} className="rounded-lg border p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{course.title}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge>{course.frequency}</Badge>
+                      <CourseActions
+                        course={course}
+                        medicines={medicines}
+                        onUpdateCourse={handleUpdateCourse}
+                        onDeleteCourse={handleDeleteCourse}
+                      />
+                    </div>
                   </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Препарат: {medicineNameById.get(course.medicineId) ?? "Невідомо"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Дозування: {course.dosage}</p>
+                  <p className="text-sm text-muted-foreground">Часи: {course.times.join(", ")}</p>
+                  <p className="text-sm text-muted-foreground">{formatCoursePeriod(course)}</p>
+                  {warning && warning.severity !== "ok" ? (
+                    <p className="mt-1 text-sm text-amber-600">{warning.message}</p>
+                  ) : null}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Препарат: {medicineNameById.get(course.medicineId) ?? "Невідомо"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Дозування: {course.dosage}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Часи: {course.times.join(", ")}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {formatCoursePeriod(course)}
-                </p>
-              </div>
-            ))
+              )
+            })
           )}
         </CardContent>
       </Card>
@@ -324,32 +433,39 @@ export function ScheduleInteractive({
         </CardHeader>
         <CardContent className="space-y-3">
           {plannedCourses.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Запланованих курсів поки немає.
-            </p>
+            <Empty className="gap-2 rounded-lg border border-dashed p-4">
+              <EmptyHeader className="gap-1">
+                <EmptyTitle className="text-sm">Запланованих курсів поки немає</EmptyTitle>
+                <EmptyDescription>Додай курс зі статусом planned.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
-            plannedCourses.map((course) => (
-              <div key={course.id} className="rounded-lg border p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{course.title}</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">{course.frequency}</Badge>
-                    <CourseActions
-                      course={course}
-                      medicines={medicines}
-                      onUpdateCourse={handleUpdateCourse}
-                      onDeleteCourse={handleDeleteCourse}
-                    />
+            plannedCourses.map((course) => {
+              const warning = warningByCourseId.get(course.id)
+              return (
+                <div key={course.id} className="rounded-lg border p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{course.title}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{course.frequency}</Badge>
+                      <CourseActions
+                        course={course}
+                        medicines={medicines}
+                        onUpdateCourse={handleUpdateCourse}
+                        onDeleteCourse={handleDeleteCourse}
+                      />
+                    </div>
                   </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Препарат: {medicineNameById.get(course.medicineId) ?? "Невідомо"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{formatCoursePeriod(course)}</p>
+                  {warning && warning.severity !== "ok" ? (
+                    <p className="mt-1 text-sm text-amber-600">{warning.message}</p>
+                  ) : null}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Препарат: {medicineNameById.get(course.medicineId) ?? "Невідомо"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {formatCoursePeriod(course)}
-                </p>
-              </div>
-            ))
+              )
+            })
           )}
         </CardContent>
       </Card>
