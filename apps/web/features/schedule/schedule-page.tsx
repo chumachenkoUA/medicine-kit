@@ -8,7 +8,7 @@ export async function SchedulePage() {
   return (
     <PageShell
       title="Розклад прийому"
-      description="План прийомів по днях, нагадування і швидкий перегляд активних курсів."
+      description="Календар прийомів по днях і найближчі події для поточного дня."
     >
       <ScheduleInteractive medicines={medicines} initialCourses={courses} />
     </PageShell>

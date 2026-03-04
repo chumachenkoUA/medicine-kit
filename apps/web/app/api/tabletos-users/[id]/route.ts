@@ -41,3 +41,24 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     networkErrorMessage: "Не вдалося звернутися до сервісу упаковок.",
   })
 }
+
+export async function DELETE(_: Request, { params }: RouteParams) {
+  const token = await readAccessToken()
+  if (!token) {
+    return unauthorizedResponse()
+  }
+
+  const { id } = await params
+  const backendPath = toBackendPath(id)
+  if (!backendPath) {
+    return badRequestResponse("Некоректний ID упаковки.")
+  }
+
+  return forwardBackendRequest({
+    path: backendPath,
+    method: "DELETE",
+    token,
+    backendErrorMessage: "Не вдалося видалити упаковку.",
+    networkErrorMessage: "Не вдалося звернутися до сервісу упаковок.",
+  })
+}

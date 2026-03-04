@@ -64,12 +64,14 @@ model tabletos_user{
 
   users    users    @relation(fields: [users_id], references: [Id], onDelete: Cascade, map: "fk_users")
   tabletos tabletos @relation(fields: [tabletos_id], references: [Id], onDelete: Cascade, map: "fk_tabletos")
+  course_dose_logs course_dose_logs[]
   }
 
 model course_dose_logs {
   Id         BigInt   @id @default(autoincrement())
   course_id  BigInt
   users_id   BigInt
+  tabletos_user_id BigInt?
   Dose_date  DateTime @db.Date
   Dose_time  String   @db.VarChar(5)
   State      String   @db.VarChar(32)
@@ -78,7 +80,9 @@ model course_dose_logs {
 
   course courses @relation(fields: [course_id], references: [Id], onDelete: Cascade, map: "fk_course_dose_logs_course")
   users  users   @relation(fields: [users_id], references: [Id], onDelete: Cascade, map: "fk_course_dose_logs_user")
+  tabletos_user tabletos_user? @relation(fields: [tabletos_user_id], references: [Id], onDelete: SetNull, map: "fk_course_dose_logs_tabletos_user")
 
   @@unique([course_id, Dose_date, Dose_time])
   @@index([users_id, Dose_date])
+  @@index([tabletos_user_id])
 }

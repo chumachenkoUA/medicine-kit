@@ -15,8 +15,10 @@ import {
   courseStockWarningListSchema,
   createCourseRequestSchema,
   upsertCourseDoseLogRequestSchema,
+  upsertCourseDoseLogResponseSchema,
   type MedicinePreviewResponseContract,
   type MedicineSearchResultContract,
+  type UpsertCourseDoseLogResponse,
 } from "@/lib/medicines/contracts"
 import {
   mapTabletoToMedicine,
@@ -94,7 +96,10 @@ export interface UpsertCourseDoseLogPayload {
   date: string
   time: string
   state: DoseLogState
+  packageId?: number
 }
+
+export type UpsertCourseDoseLogResult = UpsertCourseDoseLogResponse
 
 function parseCourseDate(value?: string | null): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined
@@ -594,6 +599,23 @@ export async function updateMedicinePackage(
   throw new Error(getApiErrorMessage(errorPayload, "Не вдалося оновити упаковку."))
 }
 
+export async function deleteMedicinePackage(id: string): Promise<void> {
+  const response = await fetchApiResponse(`/api/tabletos-users/${id}`, {
+    method: "DELETE",
+  })
+
+  if (response.ok) return
+
+  let errorPayload: unknown = null
+  try {
+    errorPayload = await parseJsonOrThrow(response)
+  } catch {
+    errorPayload = null
+  }
+
+  throw new Error(getApiErrorMessage(errorPayload, "Не вдалося видалити упаковку."))
+}
+
 export async function getMedicineCourses(): Promise<MedicineCourse[]> {
   const payload = await fetchApiJson<unknown>("/api/courses")
   const parsed = apiCourseListSchema.safeParse(payload)
@@ -655,7 +677,7 @@ export async function getCourseCalendar(
 export async function upsertCourseDoseLog(
   courseId: MedicineId,
   payload: UpsertCourseDoseLogPayload
-): Promise<void> {
+): Promise<UpsertCourseDoseLogResult> {
   const parsed = upsertCourseDoseLogRequestSchema.safeParse(payload)
   if (!parsed.success) {
     throw new Error("Некоректні дані для відмітки прийому.")
@@ -667,7 +689,14 @@ export async function upsertCourseDoseLog(
     body: JSON.stringify(parsed.data),
   })
 
-  if (response.ok) return
+  if (response.ok) {
+    const responsePayload = await parseJsonOrThrow<unknown>(response)
+    const parsedResponse = upsertCourseDoseLogResponseSchema.safeParse(responsePayload)
+    if (!parsedResponse.success) {
+      throw new Error("Бекенд повернув некоректну відповідь для статусу дози.")
+    }
+    return parsedResponse.data
+  }
 
   let errorPayload: unknown = null
   try {

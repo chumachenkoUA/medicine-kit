@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
@@ -13,6 +19,7 @@ import {
 type UserIdLike = string | number | bigint;
 
 type CourseStatus = 'active' | 'planned' | 'completed' | 'paused';
+type DoseLogState = 'taken' | 'missed' | 'skipped';
 
 @Injectable()
 export class CoursesService {
@@ -56,6 +63,72 @@ export class CoursesService {
     if (Number.isNaN(parsed.getTime())) return undefined;
     parsed.setHours(mode === 'start' ? 0 : 23, mode === 'start' ? 0 : 59, mode === 'start' ? 0 : 59, mode === 'start' ? 0 : 999);
     return parsed;
+  }
+
+  private normalizePackageId(value: unknown): bigint | undefined {
+    if (value == null) return undefined;
+    const normalized = Number(value);
+    if (!Number.isInteger(normalized) || normalized <= 0) return undefined;
+    return this.normalizeId(normalized);
+  }
+
+  private isTakenState(state: string | null | undefined): state is 'taken' {
+    return state === 'taken';
+  }
+
+  private async findAvailablePackages(
+    tx: Prisma.TransactionClient,
+    userId: bigint,
+    medicineId: bigint,
+  ) {
+    const today = this.toDateOnly(new Date());
+
+    return tx.tabletos_user.findMany({
+      where: {
+        users_id: userId,
+        tabletos_id: medicineId,
+        Count: { gt: 0 },
+        Expiration_date: { gte: today },
+      },
+      orderBy: [{ Expiration_date: 'asc' }, { Create_date: 'asc' }, { Id: 'asc' }],
+    });
+  }
+
+  private async resolveTakenPackage(
+    tx: Prisma.TransactionClient,
+    userId: bigint,
+    medicineId: bigint,
+    requestedPackageId?: bigint,
+  ) {
+    if (requestedPackageId) {
+      const selectedPackage = await tx.tabletos_user.findFirst({
+        where: {
+          Id: requestedPackageId,
+          users_id: userId,
+          tabletos_id: medicineId,
+          Count: { gt: 0 },
+          Expiration_date: { gte: this.toDateOnly(new Date()) },
+        },
+      });
+
+      if (!selectedPackage) {
+        throw new BadRequestException(
+          'Обрана упаковка недоступна для списання або вже порожня.',
+        );
+      }
+
+      return selectedPackage;
+    }
+
+    const availablePackages = await this.findAvailablePackages(tx, userId, medicineId);
+    if (availablePackages.length === 0) {
+      throw new BadRequestException('Немає доступних упаковок для списання таблетки.');
+    }
+    if (availablePackages.length > 1) {
+      throw new ConflictException('Обери упаковку для списання таблетки.');
+    }
+
+    return availablePackages[0];
   }
 
   private serializeBigInt<T>(payload: T): T {
@@ -242,25 +315,104 @@ export class CoursesService {
     const normalizedUserId = this.normalizeId(userId);
     const course = await this.findOwnedCourseOrThrow(userId, courseId);
     const doseDate = this.toDateOnly(dto.date);
+    const requestedPackageId = this.normalizePackageId(dto.packageId);
 
-    const payload = await prisma.course_dose_logs.upsert({
-      where: {
-        course_id_Dose_date_Dose_time: {
-          course_id: course.Id,
-          Dose_date: doseDate,
-          Dose_time: dto.time,
+    if (dto.packageId != null && !requestedPackageId) {
+      throw new BadRequestException('Некоректний packageId для списання таблетки.');
+    }
+
+    const payload = await prisma.$transaction(async (tx) => {
+      const existingLog = await tx.course_dose_logs.findUnique({
+        where: {
+          course_id_Dose_date_Dose_time: {
+            course_id: course.Id,
+            Dose_date: doseDate,
+            Dose_time: dto.time,
+          },
         },
-      },
-      create: {
-        course_id: course.Id,
-        users_id: normalizedUserId,
-        Dose_date: doseDate,
-        Dose_time: dto.time,
-        State: dto.state,
-      },
-      update: {
-        State: dto.state,
-      },
+      });
+
+      const previousState = existingLog?.State as DoseLogState | undefined;
+      const wasTaken = this.isTakenState(previousState);
+      const willBeTaken = this.isTakenState(dto.state);
+      let nextPackageId = existingLog?.tabletos_user_id ?? null;
+      let stockDelta = 0;
+      let packageCount: number | null = null;
+
+      if (!wasTaken && willBeTaken) {
+        const selectedPackage = await this.resolveTakenPackage(
+          tx,
+          normalizedUserId,
+          course.tabletos_id,
+          requestedPackageId,
+        );
+        const updatedPackage = await tx.tabletos_user.update({
+          where: { Id: selectedPackage.Id },
+          data: {
+            Count: {
+              decrement: 1,
+            },
+          },
+        });
+        nextPackageId = selectedPackage.Id;
+        stockDelta = -1;
+        packageCount = updatedPackage.Count;
+      } else if (wasTaken && !willBeTaken) {
+        if (existingLog?.tabletos_user_id) {
+          const restoredPackage = await tx.tabletos_user.findFirst({
+            where: {
+              Id: existingLog.tabletos_user_id,
+              users_id: normalizedUserId,
+              tabletos_id: course.tabletos_id,
+            },
+          });
+
+          if (restoredPackage) {
+            const updatedPackage = await tx.tabletos_user.update({
+              where: { Id: restoredPackage.Id },
+              data: {
+                Count: {
+                  increment: 1,
+                },
+              },
+            });
+            stockDelta = 1;
+            packageCount = updatedPackage.Count;
+          }
+        }
+
+        nextPackageId = null;
+      }
+
+      const savedLog = existingLog
+        ? await tx.course_dose_logs.update({
+            where: {
+              Id: existingLog.Id,
+            },
+            data: {
+              State: dto.state,
+              tabletos_user_id: nextPackageId,
+            },
+          })
+        : await tx.course_dose_logs.create({
+            data: {
+              course_id: course.Id,
+              users_id: normalizedUserId,
+              Dose_date: doseDate,
+              Dose_time: dto.time,
+              State: dto.state,
+              tabletos_user_id: nextPackageId,
+            },
+          });
+
+      return {
+        id: String(savedLog.Id),
+        state: dto.state,
+        previousState: previousState ?? null,
+        stockDelta,
+        packageId: nextPackageId != null ? String(nextPackageId) : null,
+        packageCount,
+      };
     });
 
     return this.serializeBigInt(payload);

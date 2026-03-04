@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 export class UpsertDoseLogDto {
   @IsString()
@@ -15,4 +15,9 @@ export class UpsertDoseLogDto {
   @IsNotEmpty()
   @IsIn(['taken', 'missed', 'skipped'])
   state: 'taken' | 'missed' | 'skipped';
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  packageId?: number;
 }

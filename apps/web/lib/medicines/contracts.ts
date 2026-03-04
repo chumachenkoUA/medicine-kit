@@ -112,6 +112,16 @@ export const upsertCourseDoseLogRequestSchema = z.object({
   date: z.string().date(),
   time: z.string().regex(/^\d{2}:\d{2}$/),
   state: z.enum(["taken", "missed", "skipped"]),
+  packageId: z.coerce.number().int().positive().optional(),
+})
+
+export const upsertCourseDoseLogResponseSchema = z.object({
+  id: z.string().optional(),
+  state: z.enum(["taken", "missed", "skipped"]),
+  previousState: z.enum(["taken", "missed", "skipped"]).nullable(),
+  stockDelta: z.coerce.number().int(),
+  packageId: z.string().nullable(),
+  packageCount: z.coerce.number().int().nullable(),
 })
 
 export const courseProgressSchema = z.object({
@@ -231,6 +241,7 @@ export type CreateTabletosUserRequest = z.infer<typeof createTabletosUserRequest
 export type CreateCourseRequest = z.infer<typeof createCourseRequestSchema>
 export type ApiCourseCalendarEvent = z.infer<typeof apiCourseCalendarEventSchema>
 export type UpsertCourseDoseLogRequest = z.infer<typeof upsertCourseDoseLogRequestSchema>
+export type UpsertCourseDoseLogResponse = z.infer<typeof upsertCourseDoseLogResponseSchema>
 export type CourseProgressContract = z.infer<typeof courseProgressSchema>
 export type CourseStockWarningContract = z.infer<typeof courseStockWarningSchema>
 export type MedicineSearchResultContract = z.infer<typeof medicineSearchResultSchema>
