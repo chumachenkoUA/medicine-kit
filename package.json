@@ -1,0 +1,10 @@
+{
+  "name": "medicine-kit",
+  "private": true,
+  "scripts": {
+    "start": "docker compose -f docker-compose.yml up -d --build",
+    "stop": "docker compose -f docker-compose.yml down",
+    "docker:ps": "docker compose -f docker-compose.yml ps",
+    "docker:logs": "docker compose -f docker-compose.yml logs -f"
+  }
+}
