@@ -544,4 +544,9 @@ export class CoursesService {
 
     return this.serializeBigInt(warnings);
   }
+
+  async getCalendarEventsByUser(userId: string | number | bigint) {
+    const courses = await this.findAllByUser(userId);
+    return courses.flatMap((course) => generateEventsWithFlexibleHours(course));
+  }
 }
