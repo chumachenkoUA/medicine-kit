@@ -1,48 +1,34 @@
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
-import { ACCESS_TOKEN_COOKIE } from "@/lib/config/api"
 import {
-  fetchBackend,
-  getBackendError,
-  readResponsePayload,
-} from "@/lib/backend/http"
+  badRequestResponse,
+  buildPathWithQuery,
+  forwardBackendRequest,
+  parseJsonBody,
+  readAccessToken,
+  unauthorizedResponse,
+} from "@/app/api/_shared/proxy"
+import { NextResponse } from "next/server"
 import { createTabletosUserRequestSchema } from "@/lib/medicines/contracts"
 
 export async function GET(request: Request) {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
+  const token = await readAccessToken()
   if (!token) {
-    return NextResponse.json(
-      { message: "Потрібна авторизація." },
-      { status: 401 }
-    )
+    return unauthorizedResponse()
   }
 
-  try {
-    const requestUrl = new URL(request.url)
-    const params = new URLSearchParams()
-    for (const key of ["search", "effect", "sort", "showExpired"] as const) {
-      const value = requestUrl.searchParams.get(key)?.trim()
-      if (value) params.set(key, value)
-    }
+  const requestUrl = new URL(request.url)
+  const backendPath = buildPathWithQuery("/tabletos-users", {
+    search: requestUrl.searchParams.get("search") ?? undefined,
+    effect: requestUrl.searchParams.get("effect") ?? undefined,
+    sort: requestUrl.searchParams.get("sort") ?? undefined,
+    showExpired: requestUrl.searchParams.get("showExpired") ?? undefined,
+  })
 
-    const backendPath = params.toString()
-      ? `/tabletos-users?${params.toString()}`
-      : "/tabletos-users"
-
-    const response = await fetchBackend(backendPath, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    const payload = await readResponsePayload(response)
-    return NextResponse.json(payload, { status: response.status })
-  } catch {
-    return NextResponse.json(
-      { message: "Не вдалося завантажити дані аптечки користувача." },
-      { status: 502 }
-    )
-  }
+  return forwardBackendRequest({
+    path: backendPath,
+    method: "GET",
+    token,
+    networkErrorMessage: "Не вдалося завантажити дані аптечки користувача.",
+  })
 }
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
@@ -75,12 +61,9 @@ function toIsoDateTimeFromDateInput(value: string): string {
 }
 
 export async function POST(request: Request) {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
+  const token = await readAccessToken()
   if (!token) {
-    return NextResponse.json(
-      { message: "Потрібна авторизація." },
-      { status: 401 }
-    )
+    return unauthorizedResponse()
   }
 
   const userId = readUserIdFromPayload(parseJwtPayload(token))
@@ -91,49 +74,24 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ message: "Некоректне тіло запиту." }, { status: 400 })
-  }
+  const parsedBody = await parseJsonBody(request)
+  if (!parsedBody.ok) return parsedBody.response
 
-  const parsed = createTabletosUserRequestSchema.safeParse(body)
+  const parsed = createTabletosUserRequestSchema.safeParse(parsedBody.data)
   if (!parsed.success) {
-    return NextResponse.json(
-      { message: "Некоректні дані для створення упаковки." },
-      { status: 400 }
-    )
+    return badRequestResponse("Некоректні дані для створення упаковки.")
   }
 
-  try {
-    const response = await fetchBackend("/tabletos-users", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...parsed.data,
-        expirationDate: toIsoDateTimeFromDateInput(parsed.data.expirationDate),
-        userId,
-      }),
-    })
-
-    if (!response.ok) {
-      const message = await getBackendError(
-        response,
-        "Не вдалося створити упаковку препарату."
-      )
-      return NextResponse.json({ message }, { status: response.status })
-    }
-
-    const payload = await readResponsePayload(response)
-    return NextResponse.json(payload, { status: response.status })
-  } catch {
-    return NextResponse.json(
-      { message: "Не вдалося звернутися до сервісу упаковок." },
-      { status: 502 }
-    )
-  }
+  return forwardBackendRequest({
+    path: "/tabletos-users",
+    method: "POST",
+    token,
+    body: {
+      ...parsed.data,
+      expirationDate: toIsoDateTimeFromDateInput(parsed.data.expirationDate),
+      userId,
+    },
+    backendErrorMessage: "Не вдалося створити упаковку препарату.",
+    networkErrorMessage: "Не вдалося звернутися до сервісу упаковок.",
+  })
 }

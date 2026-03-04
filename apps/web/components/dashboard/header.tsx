@@ -11,6 +11,8 @@ import { logoutAction } from "@/app/(auth)/actions"
 const navItems = [
   { href: "/dashboard", label: "Дашборд" },
   { href: "/schedule", label: "Розклад" },
+  { href: "/schedule/courses", label: "Курси" },
+  { href: "/dashboard/basket", label: "Корзина" },
   { href: "/dashboard/create-medicine", label: "Додати ліки" },
 ]
 
@@ -19,6 +21,7 @@ export function DashboardHeader() {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard"
+    if (href === "/schedule") return pathname === "/schedule"
     return pathname === href || pathname.startsWith(`${href}/`)
   }
 

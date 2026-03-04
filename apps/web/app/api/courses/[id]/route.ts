@@ -1,109 +1,64 @@
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
-import { ACCESS_TOKEN_COOKIE } from "@/lib/config/api"
 import {
-  fetchBackend,
-  getBackendError,
-  readResponsePayload,
-} from "@/lib/backend/http"
+  badRequestResponse,
+  forwardBackendRequest,
+  parseJsonBody,
+  parseNumericId,
+  readAccessToken,
+  unauthorizedResponse,
+} from "@/app/api/_shared/proxy"
 
 interface CourseRouteParams {
   params: Promise<{ id: string }>
 }
 
 function toCourseBackendPath(id: string): string | null {
-  const normalized = id.trim()
-  if (!/^\d+$/.test(normalized)) return null
+  const normalized = parseNumericId(id)
+  if (!normalized) return null
   return `/courses/${normalized}`
 }
 
 export async function PATCH(request: Request, { params }: CourseRouteParams) {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
+  const token = await readAccessToken()
   if (!token) {
-    return NextResponse.json(
-      { message: "Потрібна авторизація." },
-      { status: 401 }
-    )
+    return unauthorizedResponse()
   }
 
   const { id } = await params
   const backendPath = toCourseBackendPath(id)
   if (!backendPath) {
-    return NextResponse.json({ message: "Некоректний ID курсу." }, { status: 400 })
+    return badRequestResponse("Некоректний ID курсу.")
   }
 
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ message: "Некоректне тіло запиту." }, { status: 400 })
-  }
+  const parsedBody = await parseJsonBody(request)
+  if (!parsedBody.ok) return parsedBody.response
 
-  try {
-    const response = await fetchBackend(backendPath, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!response.ok) {
-      const message = await getBackendError(
-        response,
-        "Не вдалося оновити курс."
-      )
-      return NextResponse.json({ message }, { status: response.status })
-    }
-
-    const payload = await readResponsePayload(response)
-    return NextResponse.json(payload, { status: response.status })
-  } catch {
-    return NextResponse.json(
-      { message: "Не вдалося звернутися до сервісу курсів." },
-      { status: 502 }
-    )
-  }
+  return forwardBackendRequest({
+    path: backendPath,
+    method: "PATCH",
+    token,
+    body: parsedBody.data,
+    backendErrorMessage: "Не вдалося оновити курс.",
+    networkErrorMessage: "Не вдалося звернутися до сервісу курсів.",
+  })
 }
 
 export async function DELETE(_: Request, { params }: CourseRouteParams) {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
+  const token = await readAccessToken()
   if (!token) {
-    return NextResponse.json(
-      { message: "Потрібна авторизація." },
-      { status: 401 }
-    )
+    return unauthorizedResponse()
   }
 
   const { id } = await params
   const backendPath = toCourseBackendPath(id)
   if (!backendPath) {
-    return NextResponse.json({ message: "Некоректний ID курсу." }, { status: 400 })
+    return badRequestResponse("Некоректний ID курсу.")
   }
 
-  try {
-    const response = await fetchBackend(backendPath, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-
-    if (!response.ok) {
-      const message = await getBackendError(
-        response,
-        "Не вдалося видалити курс."
-      )
-      return NextResponse.json({ message }, { status: response.status })
-    }
-
-    const payload = await readResponsePayload(response)
-    return NextResponse.json(payload, { status: response.status })
-  } catch {
-    return NextResponse.json(
-      { message: "Не вдалося звернутися до сервісу курсів." },
-      { status: 502 }
-    )
-  }
+  return forwardBackendRequest({
+    path: backendPath,
+    method: "DELETE",
+    token,
+    backendErrorMessage: "Не вдалося видалити курс.",
+    networkErrorMessage: "Не вдалося звернутися до сервісу курсів.",
+  })
 }

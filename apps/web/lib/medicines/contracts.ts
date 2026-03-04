@@ -48,6 +48,7 @@ export const apiCourseSchema = z.object({
   Description: z.string().nullish(),
   Start_date: z.string().nullish(),
   End_date: z.string().nullish(),
+  Dose_times: z.array(z.string()).nullish(),
   startDate: z.string().nullish(),
   endDate: z.string().nullish(),
   Status: z.string().nullish(),
@@ -87,7 +88,68 @@ export const createCourseRequestSchema = z.object({
   startDate: z.string().date(),
   description: z.string().trim().optional(),
   tabletoId: z.coerce.number().int().positive(),
+  status: z.enum(["active", "planned", "completed", "paused"]).optional(),
+  doseTimes: z.array(z.string().regex(/^\d{2}:\d{2}$/)).optional(),
 })
+
+export const apiCourseCalendarEventSchema = z.object({
+  id: z.string(),
+  courseId: z.union([z.number(), z.string()]),
+  medicineId: z.union([z.number(), z.string()]),
+  medicineName: z.string().optional(),
+  doctorName: z.string().optional(),
+  title: z.string(),
+  doseTime: z.string().regex(/^\d{2}:\d{2}$/),
+  status: z.enum(["scheduled", "taken", "missed", "skipped"]),
+  start: z.string(),
+  end: z.string(),
+  allDay: z.boolean(),
+})
+
+export const apiCourseCalendarListSchema = z.array(apiCourseCalendarEventSchema)
+
+export const upsertCourseDoseLogRequestSchema = z.object({
+  date: z.string().date(),
+  time: z.string().regex(/^\d{2}:\d{2}$/),
+  state: z.enum(["taken", "missed", "skipped"]),
+  packageId: z.coerce.number().int().positive().optional(),
+})
+
+export const upsertCourseDoseLogResponseSchema = z.object({
+  id: z.string().optional(),
+  state: z.enum(["taken", "missed", "skipped"]),
+  previousState: z.enum(["taken", "missed", "skipped"]).nullable(),
+  stockDelta: z.coerce.number().int(),
+  packageId: z.string().nullable(),
+  packageCount: z.coerce.number().int().nullable(),
+})
+
+export const courseProgressSchema = z.object({
+  courseId: z.union([z.number(), z.string()]),
+  from: z.string().nullish(),
+  to: z.string().nullish(),
+  total: z.coerce.number().int().nonnegative(),
+  taken: z.coerce.number().int().nonnegative(),
+  missed: z.coerce.number().int().nonnegative(),
+  skipped: z.coerce.number().int().nonnegative(),
+  remaining: z.coerce.number().int().nonnegative(),
+  adherencePercent: z.coerce.number().int().min(0).max(100),
+})
+
+export const courseStockWarningSchema = z.object({
+  courseId: z.union([z.number(), z.string()]),
+  medicineId: z.union([z.number(), z.string()]),
+  medicineName: z.string(),
+  courseStatus: z.string(),
+  stockCount: z.coerce.number().int().nonnegative(),
+  dailyNeed: z.coerce.number().int().positive(),
+  daysLeftEstimate: z.coerce.number().nonnegative(),
+  severity: z.enum(["ok", "low", "empty"]),
+  message: z.string(),
+  courseEndDate: z.string().nullish(),
+})
+
+export const courseStockWarningListSchema = z.array(courseStockWarningSchema)
 
 const apiIdLikeSchema = z.union([z.number(), z.string()])
 
@@ -177,6 +239,11 @@ export type ApiCourse = z.infer<typeof apiCourseSchema>
 export type CreateTabletoRequest = z.infer<typeof createTabletoRequestSchema>
 export type CreateTabletosUserRequest = z.infer<typeof createTabletosUserRequestSchema>
 export type CreateCourseRequest = z.infer<typeof createCourseRequestSchema>
+export type ApiCourseCalendarEvent = z.infer<typeof apiCourseCalendarEventSchema>
+export type UpsertCourseDoseLogRequest = z.infer<typeof upsertCourseDoseLogRequestSchema>
+export type UpsertCourseDoseLogResponse = z.infer<typeof upsertCourseDoseLogResponseSchema>
+export type CourseProgressContract = z.infer<typeof courseProgressSchema>
+export type CourseStockWarningContract = z.infer<typeof courseStockWarningSchema>
 export type MedicineSearchResultContract = z.infer<typeof medicineSearchResultSchema>
 export type MedicinePreviewResponseContract = z.infer<typeof medicinePreviewResponseSchema>
 export type CreateMedicineResponseContract = z.infer<typeof createMedicineResponseSchema>

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarClock, Minus, Package2, Pill, Plus } from "lucide-react"
@@ -30,13 +31,13 @@ import { getStockPercent, isExpiringSoon } from "@/lib/medicine"
 import type { MedicineDashboardItem } from "@/types/medicine"
 
 type SortKey = "name-asc" | "name-desc" | "stock-asc" | "expiry"
-type BackendSort = "name_asc" | "name_desc" | "count_asc" | "date_asc"
 type ExpiredFilter = "all" | "expired"
 
 interface PackageCardItem {
   packageId: string
   medicineId: string
   medicineName: string
+  imageUrl?: string
   form: string
   description: string
   tabletsInPack: number
@@ -45,11 +46,33 @@ interface PackageCardItem {
   stockUnit: string
 }
 
-function mapSortKeyToBackendSort(value: SortKey): BackendSort {
-  if (value === "name-asc") return "name_asc"
-  if (value === "name-desc") return "name_desc"
-  if (value === "stock-asc") return "count_asc"
-  return "date_asc"
+function patchPackageCount(
+  source: MedicineDashboardItem[],
+  packageId: string,
+  nextCount: number
+): MedicineDashboardItem[] {
+  return source.map((medicine) => {
+    const packageIndex = medicine.packages.findIndex((pack) => pack.id === packageId)
+    if (packageIndex === -1) return medicine
+
+    const previousCount = medicine.packages[packageIndex]?.tabletsInPack ?? 0
+    const delta = nextCount - previousCount
+
+    const nextPackages = medicine.packages.map((pack) =>
+      pack.id === packageId ? { ...pack, tabletsInPack: nextCount } : pack
+    )
+
+    const nextStockCount = Math.max(0, medicine.stockCount + delta)
+    const nextStockCapacity = medicine.stockCapacity
+
+    return {
+      ...medicine,
+      packages: nextPackages,
+      stockCount: nextStockCount,
+      stockCapacity: nextStockCapacity,
+      stockLabel: `${nextStockCount} ${medicine.stockUnit}`,
+    }
+  })
 }
 
 function patchPackageCount(
@@ -92,6 +115,8 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
   const [sort, setSort] = useState<SortKey>("name-asc")
   const [expiredFilter, setExpiredFilter] = useState<ExpiredFilter>("all")
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null)
+  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false)
+  const [failedImageKeys, setFailedImageKeys] = useState<Record<string, true>>({})
   const [consumeAmount, setConsumeAmount] = useState("1")
   const debouncedQuery = useDebouncedValue(query.trim(), 350)
   const debouncedEffectQuery = useDebouncedValue(effectQuery.trim(), 350)
@@ -111,7 +136,6 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
         {
           search: debouncedQuery || undefined,
           effect: debouncedEffectQuery || undefined,
-          sort: mapSortKeyToBackendSort(sort),
           showExpired: expiredFilter === "expired",
         },
         { signal }
@@ -162,6 +186,7 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
           packageId: pack.id,
           medicineId: medicine.id,
           medicineName: medicine.name,
+          imageUrl: medicine.imageUrl,
           form: medicine.form,
           description: medicine.description,
           tabletsInPack: pack.tabletsInPack,
@@ -226,7 +251,15 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
 
   const handleOpenPackage = (packageId: string) => {
     setSelectedPackageId(packageId)
+    setIsImagePreviewOpen(false)
     setConsumeAmount("1")
+  }
+
+  const markImageAsFailed = (key: string) => {
+    setFailedImageKeys((current) => {
+      if (current[key]) return current
+      return { ...current, [key]: true }
+    })
   }
 
   const handleConsume = (amount: number) => {
@@ -357,12 +390,26 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
                 onClick={() => handleOpenPackage(pack.packageId)}
               >
                 <CardContent className="space-y-3 p-4">
-                  <div className="space-y-1">
-                    <p className="flex items-center gap-2 text-base font-semibold">
-                      <Pill className="size-4 text-primary" />
-                      {pack.medicineName}
-                    </p>
-                    <p className="line-clamp-1 text-xs text-muted-foreground">{pack.form}</p>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-muted/40">
+                      {pack.imageUrl && !failedImageKeys[`card:${pack.packageId}`] ? (
+                        <Image
+                          src={pack.imageUrl}
+                          alt={pack.medicineName}
+                          width={48}
+                          height={48}
+                          unoptimized
+                          className="h-full w-full object-cover"
+                          onError={() => markImageAsFailed(`card:${pack.packageId}`)}
+                        />
+                      ) : (
+                        <Pill className="size-5 text-primary" />
+                      )}
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <p className="line-clamp-2 text-base font-semibold">{pack.medicineName}</p>
+                      <p className="line-clamp-1 text-xs text-muted-foreground">{pack.form}</p>
+                    </div>
                   </div>
 
                   <p className="line-clamp-2 text-sm text-muted-foreground">{pack.description}</p>
@@ -425,18 +472,69 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
 
       <Dialog
         open={Boolean(selectedPackage)}
-        onOpenChange={(open) => !open && setSelectedPackageId(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedPackageId(null)
+            setIsImagePreviewOpen(false)
+          }
+        }}
       >
         <DialogContent>
           {selectedPackage ? (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <Pill className="size-5 text-primary" />
+                  {selectedPackage.imageUrl &&
+                  !failedImageKeys[`modal:${selectedPackage.packageId}`] ? (
+                    <div className="flex size-8 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-muted/40">
+                      <Image
+                        src={selectedPackage.imageUrl}
+                        alt={selectedPackage.medicineName}
+                        width={32}
+                        height={32}
+                        unoptimized
+                        className="h-full w-full object-cover"
+                        onError={() => markImageAsFailed(`modal:${selectedPackage.packageId}`)}
+                      />
+                    </div>
+                  ) : (
+                    <Pill className="size-5 text-primary" />
+                  )}
                   {selectedPackage.medicineName}
                 </DialogTitle>
                 <DialogDescription>{selectedPackage.description}</DialogDescription>
               </DialogHeader>
+
+              <div className="space-y-2">
+                <div className="relative mx-auto flex h-40 w-full max-w-xs items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-muted/40">
+                  {selectedPackage.imageUrl &&
+                  !failedImageKeys[`modal:large:${selectedPackage.packageId}`] ? (
+                    <Image
+                      src={selectedPackage.imageUrl}
+                      alt={selectedPackage.medicineName}
+                      fill
+                      unoptimized
+                      className="object-contain p-2"
+                      onError={() => markImageAsFailed(`modal:large:${selectedPackage.packageId}`)}
+                    />
+                  ) : (
+                    <Pill className="size-10 text-primary" />
+                  )}
+                </div>
+                {selectedPackage.imageUrl &&
+                !failedImageKeys[`modal:large:${selectedPackage.packageId}`] ? (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsImagePreviewOpen(true)}
+                    >
+                      Збільшити фото
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
 
               <div className="space-y-3 text-sm">
                 <p>
@@ -508,6 +606,34 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
               </div>
             </>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isImagePreviewOpen} onOpenChange={setIsImagePreviewOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>
+              Перегляд фото препарату {selectedPackage?.medicineName ?? ""}
+            </DialogTitle>
+            <DialogDescription>Збільшене зображення упаковки препарату.</DialogDescription>
+          </DialogHeader>
+          {selectedPackage?.imageUrl &&
+          !failedImageKeys[`modal:large:${selectedPackage.packageId}`] ? (
+            <div className="relative mx-auto h-[70vh] w-full overflow-hidden rounded-xl border border-border/70 bg-muted/40">
+              <Image
+                src={selectedPackage.imageUrl}
+                alt={selectedPackage.medicineName}
+                fill
+                unoptimized
+                className="object-contain p-3"
+                onError={() => markImageAsFailed(`modal:large:${selectedPackage.packageId}`)}
+              />
+            </div>
+          ) : (
+            <div className="flex h-52 items-center justify-center rounded-xl border border-border/70 bg-muted/40">
+              <Pill className="size-12 text-primary" />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

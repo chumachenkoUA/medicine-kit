@@ -1,68 +1,64 @@
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
-import { ACCESS_TOKEN_COOKIE } from "@/lib/config/api"
 import {
-  fetchBackend,
-  getBackendError,
-  readResponsePayload,
-} from "@/lib/backend/http"
+  badRequestResponse,
+  forwardBackendRequest,
+  parseJsonBody,
+  parseNumericId,
+  readAccessToken,
+  unauthorizedResponse,
+} from "@/app/api/_shared/proxy"
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
 function toBackendPath(id: string): string | null {
-  const normalized = id.trim()
-  if (!/^\d+$/.test(normalized)) return null
+  const normalized = parseNumericId(id)
+  if (!normalized) return null
   return `/tabletos-users/${normalized}`
 }
 
 export async function PATCH(request: Request, { params }: RouteParams) {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
+  const token = await readAccessToken()
   if (!token) {
-    return NextResponse.json(
-      { message: "Потрібна авторизація." },
-      { status: 401 }
-    )
+    return unauthorizedResponse()
   }
 
   const { id } = await params
   const backendPath = toBackendPath(id)
   if (!backendPath) {
-    return NextResponse.json({ message: "Некоректний ID упаковки." }, { status: 400 })
+    return badRequestResponse("Некоректний ID упаковки.")
   }
 
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ message: "Некоректне тіло запиту." }, { status: 400 })
+  const parsedBody = await parseJsonBody(request)
+  if (!parsedBody.ok) return parsedBody.response
+
+  return forwardBackendRequest({
+    path: backendPath,
+    method: "PATCH",
+    token,
+    body: parsedBody.data,
+    backendErrorMessage: "Не вдалося оновити упаковку.",
+    networkErrorMessage: "Не вдалося звернутися до сервісу упаковок.",
+  })
+}
+
+export async function DELETE(_: Request, { params }: RouteParams) {
+  const token = await readAccessToken()
+  if (!token) {
+    return unauthorizedResponse()
   }
 
-  try {
-    const response = await fetchBackend(backendPath, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!response.ok) {
-      const message = await getBackendError(
-        response,
-        "Не вдалося оновити упаковку."
-      )
-      return NextResponse.json({ message }, { status: response.status })
-    }
-
-    const payload = await readResponsePayload(response)
-    return NextResponse.json(payload, { status: response.status })
-  } catch {
-    return NextResponse.json(
-      { message: "Не вдалося звернутися до сервісу упаковок." },
-      { status: 502 }
-    )
+  const { id } = await params
+  const backendPath = toBackendPath(id)
+  if (!backendPath) {
+    return badRequestResponse("Некоректний ID упаковки.")
   }
+
+  return forwardBackendRequest({
+    path: backendPath,
+    method: "DELETE",
+    token,
+    backendErrorMessage: "Не вдалося видалити упаковку.",
+    networkErrorMessage: "Не вдалося звернутися до сервісу упаковок.",
+  })
 }

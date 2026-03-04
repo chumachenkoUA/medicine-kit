@@ -1,36 +1,73 @@
-import { Controller, Get, Post, Query, Body, Patch, Param, Delete } from '@nestjs/common';
-import { TabletosUsersService } from './tabletos-users.service';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
+import { Request } from 'express';
+import { AuthGuard } from '../auth/auth.guard';
 import { CreateTabletosUserDto } from './dto/create-tabletos-user.dto';
 import { UpdateTabletosUserDto } from './dto/update-tabletos-user.dto';
-import { UseGuards } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
+import { TabletosUsersService } from './tabletos-users.service';
+
+type AuthenticatedRequest = Request & {
+  user?: {
+    sub?: string | number;
+  };
+};
 
 @Controller('tabletos-users')
 export class TabletosUsersController {
   constructor(private readonly tabletosUsersService: TabletosUsersService) {}
+
+  private readUserId(request: AuthenticatedRequest): string | number {
+    const sub = request.user?.sub;
+    if (!sub) throw new UnauthorizedException('Користувач не авторизований.');
+    return sub;
+  }
+
   @UseGuards(AuthGuard)
   @Post()
-  create(@Body() createTabletosUserDto: CreateTabletosUserDto) {
-    return this.tabletosUsersService.create(createTabletosUserDto);
+  create(@Req() request: AuthenticatedRequest, @Body() dto: CreateTabletosUserDto) {
+    return this.tabletosUsersService.create(this.readUserId(request), dto);
   }
+
   @UseGuards(AuthGuard)
   @Get()
-  findAll(@Query() query: any) {
-  return this.tabletosUsersService.findAll(query);
-}
+  findAll(@Req() request: AuthenticatedRequest, @Query() query: any) {
+    return this.tabletosUsersService.findAll(this.readUserId(request), query);
+  }
+
   @UseGuards(AuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tabletosUsersService.findOne(+id);
+  findOne(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.tabletosUsersService.findOne(this.readUserId(request), Number(id));
   }
+
   @UseGuards(AuthGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTabletosUserDto: UpdateTabletosUserDto) {
-    return this.tabletosUsersService.update(+id, updateTabletosUserDto);
+  update(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() updateTabletosUserDto: UpdateTabletosUserDto,
+  ) {
+    return this.tabletosUsersService.update(
+      this.readUserId(request),
+      Number(id),
+      updateTabletosUserDto,
+    );
   }
+
   @UseGuards(AuthGuard)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.tabletosUsersService.remove(+id);
+  remove(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.tabletosUsersService.remove(this.readUserId(request), Number(id));
   }
 }
