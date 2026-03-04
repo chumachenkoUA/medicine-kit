@@ -1,27 +1,35 @@
 import { fetchApiJson, fetchApiResponse } from "@/lib/client-api/client"
-import { getApiErrorMessage, parseJsonOrThrow } from "@/lib/client-api/http"
 import { normalizeClientError } from "@/lib/client-api/errors"
+import { getApiErrorMessage, parseJsonOrThrow } from "@/lib/client-api/http"
 import {
   mapCreateMedicinePayload,
   mapPreviewMedicinePayload,
   mapSearchMedicinesPayload,
 } from "@/lib/client-api/medicines.mappers"
 import {
+  apiCourseCalendarListSchema,
   apiCourseListSchema,
   apiTabletoSchema,
   apiTabletosUserListSchema,
+  courseProgressSchema,
+  courseStockWarningListSchema,
   createCourseRequestSchema,
+  upsertCourseDoseLogRequestSchema,
   type MedicinePreviewResponseContract,
   type MedicineSearchResultContract,
 } from "@/lib/medicines/contracts"
 import {
+  mapTabletoToMedicine,
   mapTabletosUsersToDashboardItems,
   mapTabletosUsersToPackagesByMedicineId,
-  mapTabletoToMedicine,
   toCreateTabletoRequest,
 } from "@/lib/medicines/mappers"
 import type { CreateMedicinePayload } from "@/lib/medicines/types"
 import type {
+  CourseCalendarEvent,
+  CourseProgress,
+  CourseStockWarning,
+  DoseLogState,
   Medicine,
   MedicineCourse,
   MedicineDashboardItem,
@@ -35,6 +43,7 @@ export type SearchMedicineResult = MedicineSearchResultContract
 export interface MedicinePreviewRequest {
   url: string
 }
+
 export type MedicinePreviewResponse = MedicinePreviewResponseContract
 
 export interface GetMedicinesQuery {
@@ -44,6 +53,11 @@ export interface GetMedicinesQuery {
   showExpired?: boolean
 }
 
+export interface GetCourseCalendarQuery {
+  from?: string
+  to?: string
+}
+
 export interface CreateMedicineCoursePayload {
   nameDoctor: string
   period: number
@@ -51,6 +65,8 @@ export interface CreateMedicineCoursePayload {
   startDate: string
   description?: string
   tabletoId: number
+  status?: MedicineCourse["status"]
+  doseTimes?: string[]
 }
 
 export interface UpdateMedicineCoursePayload {
@@ -60,6 +76,8 @@ export interface UpdateMedicineCoursePayload {
   startDate?: string
   description?: string
   tabletoId?: number
+  status?: MedicineCourse["status"]
+  doseTimes?: string[]
 }
 
 export interface UpdateMedicinePackagePayload {
@@ -70,6 +88,12 @@ export interface CreateMedicinePackagePayload {
   tabletoId: number
   count: number
   expirationDate: string
+}
+
+export interface UpsertCourseDoseLogPayload {
+  date: string
+  time: string
+  state: DoseLogState
 }
 
 function parseCourseDate(value?: string | null): string | undefined {
@@ -115,9 +139,61 @@ function buildTimesByQuantityDay(quantityDay: number): string[] {
   if (quantityDay <= 1) return ["08:00"]
   if (quantityDay === 2) return ["08:00", "20:00"]
   if (quantityDay === 3) return ["08:00", "14:00", "20:00"]
-  return Array.from({ length: quantityDay }, (_, index) =>
-    `${String((8 + index * 2) % 24).padStart(2, "0")}:00`
-  )
+
+  const startMinutes = 8 * 60
+  const endMinutes = 22 * 60
+  const span = endMinutes - startMinutes
+  const step = span / (quantityDay - 1)
+
+  return Array.from({ length: quantityDay }, (_, index) => {
+    const minutes = Math.round(startMinutes + index * step)
+    const hh = Math.floor(minutes / 60)
+    const mm = minutes % 60
+    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+  })
+}
+
+function normalizeDoseTimes(raw: unknown, quantityDay: number): string[] {
+  if (!Array.isArray(raw)) return buildTimesByQuantityDay(quantityDay)
+
+  const normalized = raw
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => /^([01]\d|2[0-3]):[0-5]\d$/.test(item))
+
+  const uniqueSorted = Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b))
+  if (uniqueSorted.length > 0) return uniqueSorted
+
+  return buildTimesByQuantityDay(quantityDay)
+}
+
+function toCourseCalendarQuery(query?: GetCourseCalendarQuery): string {
+  if (!query) return ""
+  const params = new URLSearchParams()
+  if (query.from?.trim()) params.set("from", query.from.trim())
+  if (query.to?.trim()) params.set("to", query.to.trim())
+  const serialized = params.toString()
+  return serialized ? `?${serialized}` : ""
+}
+
+function toTimeMinutes(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+  if (!match) return null
+
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null
+  }
+
+  return hours * 60 + minutes
 }
 
 export async function searchMedicines(
@@ -290,6 +366,7 @@ export async function getMedicineById(id: MedicineId): Promise<Medicine | null> 
   } catch {
     return null
   }
+
   const parsed = apiTabletoSchema.nullable().safeParse(payload)
   if (!parsed.success) {
     throw new Error("Бекенд повернув некоректні деталі препарату.")
@@ -324,26 +401,6 @@ export function computeUpcomingDoses(
   todayEnd.setHours(23, 59, 59, 999)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
 
-  const toMinutes = (value: string): number | null => {
-    const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-    if (!match) return null
-
-    const hours = Number(match[1])
-    const minutes = Number(match[2])
-    if (
-      !Number.isInteger(hours) ||
-      !Number.isInteger(minutes) ||
-      hours < 0 ||
-      hours > 23 ||
-      minutes < 0 ||
-      minutes > 59
-    ) {
-      return null
-    }
-
-    return hours * 60 + minutes
-  }
-
   return courses
     .flatMap((course) => {
       if (course.status !== "active") return []
@@ -355,7 +412,7 @@ export function computeUpcomingDoses(
       if (todayEnd < start || todayStart > end) return []
 
       return course.times.flatMap((time, index) => {
-        const minutes = toMinutes(time)
+        const minutes = toTimeMinutes(time)
         if (minutes == null) return []
 
         const delta = minutes - nowMinutes
@@ -379,11 +436,54 @@ export function computeUpcomingDoses(
         } satisfies UpcomingDose
       })
     })
-    .sort((a, b) => {
-      const aMinutes = toMinutes(a.time) ?? 0
-      const bMinutes = toMinutes(b.time) ?? 0
-      return aMinutes - bMinutes
+    .sort((a, b) => (toTimeMinutes(a.time) ?? 0) - (toTimeMinutes(b.time) ?? 0))
+    .slice(0, 6)
+}
+
+export function computeUpcomingDosesFromCalendarEvents(
+  events: CourseCalendarEvent[]
+): UpcomingDose[] {
+  if (events.length === 0) return []
+
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const todayEnd = new Date(todayStart)
+  todayEnd.setHours(23, 59, 59, 999)
+
+  return events
+    .filter((event) => event.status !== "taken" && event.status !== "skipped")
+    .filter((event) => {
+      const start = new Date(event.start)
+      return !Number.isNaN(start.getTime()) && start >= todayStart && start <= todayEnd
     })
+    .map((event) => {
+      const start = new Date(event.start)
+      const deltaMinutes = Math.round((start.getTime() - now.getTime()) / 60000)
+      const status: UpcomingDose["status"] =
+        event.status === "missed"
+          ? "missed"
+          : deltaMinutes <= 15
+            ? "now"
+            : deltaMinutes <= 120
+              ? "soon"
+              : "scheduled"
+
+      return {
+        id: event.id,
+        medicineName: event.medicineName,
+        time: event.doseTime,
+        status,
+        statusLabel:
+          status === "missed"
+            ? "Пропущено"
+            : status === "now"
+              ? "Зараз"
+              : status === "soon"
+                ? "Скоро"
+                : "Заплановано",
+      }
+    })
+    .sort((a, b) => (toTimeMinutes(a.time) ?? 0) - (toTimeMinutes(b.time) ?? 0))
     .slice(0, 6)
 }
 
@@ -504,11 +604,10 @@ export async function getMedicineCourses(): Promise<MedicineCourse[]> {
   return parsed.data.map((course) => {
     const periodDays = Math.max(1, Number(course.Period_courses) || 1)
     const periodStart = parseCourseDate(course.Start_date ?? course.startDate)
-    const periodEnd =
-      parseCourseDate(course.End_date ?? course.endDate) ??
-      computeCourseEndDate(periodStart, periodDays)
+    const periodEnd = computeCourseEndDate(periodStart, periodDays)
     const status = normalizeCourseStatus(course.Status ?? course.status)
-    const quantityDay = Number(course.Quantity_day) || 1
+    const quantityDay = Math.max(1, Number(course.Quantity_day) || 1)
+    const times = normalizeDoseTimes(course.Dose_times, quantityDay)
 
     return {
       id: String(course.Id),
@@ -520,11 +619,107 @@ export async function getMedicineCourses(): Promise<MedicineCourse[]> {
       dosage: `${quantityDay} табл./день`,
       frequency: `${quantityDay} раз/день`,
       qtyPerDay: quantityDay,
-      times: buildTimesByQuantityDay(quantityDay),
+      times,
       periodDays,
       periodStart,
       periodEnd,
       status,
     } satisfies MedicineCourse
   })
+}
+
+export async function getCourseCalendar(
+  query?: GetCourseCalendarQuery
+): Promise<CourseCalendarEvent[]> {
+  const payload = await fetchApiJson<unknown>(`/api/courses/calendar${toCourseCalendarQuery(query)}`)
+  const parsed = apiCourseCalendarListSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error("Бекенд повернув некоректний календар курсів.")
+  }
+
+  return parsed.data.map((event) => ({
+    id: event.id,
+    courseId: String(event.courseId),
+    medicineId: String(event.medicineId),
+    medicineName: event.medicineName?.trim() || "Невідомий препарат",
+    doctorName: event.doctorName?.trim() || "Невідомо",
+    title: event.title,
+    doseTime: event.doseTime,
+    status: event.status,
+    start: new Date(event.start).toISOString(),
+    end: new Date(event.end).toISOString(),
+    allDay: event.allDay,
+  }))
+}
+
+export async function upsertCourseDoseLog(
+  courseId: MedicineId,
+  payload: UpsertCourseDoseLogPayload
+): Promise<void> {
+  const parsed = upsertCourseDoseLogRequestSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error("Некоректні дані для відмітки прийому.")
+  }
+
+  const response = await fetchApiResponse(`/api/courses/${courseId}/dose-log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(parsed.data),
+  })
+
+  if (response.ok) return
+
+  let errorPayload: unknown = null
+  try {
+    errorPayload = await parseJsonOrThrow(response)
+  } catch {
+    errorPayload = null
+  }
+
+  throw new Error(getApiErrorMessage(errorPayload, "Не вдалося зберегти статус дози."))
+}
+
+export async function getCourseProgress(
+  courseId: MedicineId,
+  query?: GetCourseCalendarQuery
+): Promise<CourseProgress> {
+  const queryString = toCourseCalendarQuery(query)
+  const payload = await fetchApiJson<unknown>(`/api/courses/${courseId}/progress${queryString}`)
+  const parsed = courseProgressSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error("Бекенд повернув некоректний прогрес курсу.")
+  }
+
+  return {
+    courseId: String(parsed.data.courseId),
+    from: parsed.data.from ?? null,
+    to: parsed.data.to ?? null,
+    total: parsed.data.total,
+    taken: parsed.data.taken,
+    missed: parsed.data.missed,
+    skipped: parsed.data.skipped,
+    remaining: parsed.data.remaining,
+    adherencePercent: parsed.data.adherencePercent,
+  }
+}
+
+export async function getCourseStockWarnings(): Promise<CourseStockWarning[]> {
+  const payload = await fetchApiJson<unknown>("/api/courses/stock-warnings")
+  const parsed = courseStockWarningListSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error("Бекенд повернув некоректні попередження по запасу.")
+  }
+
+  return parsed.data.map((item) => ({
+    courseId: String(item.courseId),
+    medicineId: String(item.medicineId),
+    medicineName: item.medicineName,
+    courseStatus: item.courseStatus,
+    stockCount: item.stockCount,
+    dailyNeed: item.dailyNeed,
+    daysLeftEstimate: item.daysLeftEstimate,
+    severity: item.severity,
+    message: item.message,
+    courseEndDate: item.courseEndDate ?? null,
+  }))
 }

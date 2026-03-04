@@ -24,13 +24,23 @@ export function ProfileSettingsForm({
   const [email, setEmail] = useState(initialEmail)
   const [timezone, setTimezone] = useState(initialTimezone)
   const [success, setSuccess] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const message =
       "Налаштування збережено локально. Наступний крок: інтеграція з API профілю."
     setSuccess(message)
+    setIsEditing(false)
     toast.success(message)
+  }
+
+  const onCancel = () => {
+    setName(initialName)
+    setEmail(initialEmail)
+    setTimezone(initialTimezone)
+    setSuccess(null)
+    setIsEditing(false)
   }
 
   return (
@@ -47,21 +57,23 @@ export function ProfileSettingsForm({
             <div className="space-y-2">
               <Label htmlFor="profile-name">Імʼя та прізвище</Label>
               <Input
-                id="profile-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
+              id="profile-name"
+              value={name}
+              disabled={!isEditing}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </div>
 
             <div className="space-y-2">
               <Label htmlFor="profile-email">Email</Label>
               <Input
-                id="profile-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </div>
+              id="profile-email"
+              type="email"
+              value={email}
+              disabled={!isEditing}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
           </div>
 
           <div className="space-y-2">
@@ -69,6 +81,7 @@ export function ProfileSettingsForm({
             <Input
               id="profile-timezone"
               value={timezone}
+              disabled={!isEditing}
               onChange={(event) => setTimezone(event.target.value)}
               placeholder="Europe/Kyiv"
             />
@@ -78,9 +91,20 @@ export function ProfileSettingsForm({
 
           {success ? <p className="text-sm text-emerald-600">{success}</p> : null}
 
-          <div className="flex justify-end">
-            <Button type="submit">Зберегти зміни</Button>
-          </div>
+          {isEditing ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Скасувати
+              </Button>
+              <Button type="submit">Зберегти зміни</Button>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => setIsEditing(true)}>
+                Змінити дані
+              </Button>
+            </div>
+          )}
         </form>
       </CardContent>
     </Card>

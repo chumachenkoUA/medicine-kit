@@ -6,6 +6,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "lucide-react"
+import { uk } from "date-fns/locale"
 import {
   DayPicker,
   getDefaultClassNames,
@@ -31,6 +32,7 @@ function Calendar({
 
   return (
     <DayPicker
+      locale={uk}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
@@ -41,7 +43,7 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          date.toLocaleString("uk-UA", { month: "short" }),
         ...formatters,
       }}
       classNames={{
@@ -197,7 +199,7 @@ function CalendarDayButton({
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString()}
+      data-day={day.date.toISOString().slice(0, 10)}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&
