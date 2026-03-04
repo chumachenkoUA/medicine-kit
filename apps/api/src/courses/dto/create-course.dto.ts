@@ -1,7 +1,6 @@
-import { IsString, IsInt, IsOptional, IsNotEmpty } from 'class-validator';
+import { IsString, IsInt, IsOptional, IsNotEmpty, IsArray, IsIn } from 'class-validator';
 
 export class CreateCourseDto {
-  // --- Твої існуючі поля (для прикладу) ---
   @IsString()
   @IsNotEmpty()
   nameDoctor: string;
@@ -14,19 +13,27 @@ export class CreateCourseDto {
   
   @IsString()
   @IsNotEmpty()
-  startDate: string; // Використовуємо string, бо це дата у форматі ISO (наприклад, "2024-06-01")
+  startDate: string;
 
   @IsString()
   @IsOptional()
   description?: string;
 
-  // --- 👇 НОВІ ПОЛЯ (ДЛЯ ЗВ'ЯЗКІВ) 👇 ---
+  @IsString()
+  @IsOptional()
+  @IsIn(['planned', 'active', 'completed', 'paused'])
+  status?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  doseTimes?: string[];
   
   @IsInt()
-  @IsNotEmpty()
-  userId: number;    // Сюди фронтенд передасть ID юзера (наприклад, 1)
+  @IsOptional()
+  userId?: number;
 
   @IsInt()
   @IsNotEmpty()
-  tabletoId: number; // Сюди фронтенд передасть ID таблетки (наприклад, 5)
+  tabletoId: number;
 }

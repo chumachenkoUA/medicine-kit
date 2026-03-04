@@ -1,7 +1,6 @@
-import { IsInt, IsNotEmpty, IsDateString } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateTabletosUserDto {
-  // --- Твої існуючі поля (для прикладу) ---
   @IsInt()
   @IsNotEmpty()
   count: number;
@@ -11,13 +10,12 @@ export class CreateTabletosUserDto {
 
   @IsDateString()
   createDate: string;
-  // --- 👇 НОВІ ПОЛЯ (ДЛЯ ЗВ'ЯЗКІВ) 👇 ---
-  
+
   @IsInt()
-  @IsNotEmpty()
-  userId: number;    // Сюди фронтенд передасть ID юзера (наприклад, 1)
+  @IsOptional()
+  userId?: number;
 
   @IsInt()
   @IsNotEmpty()
-  tabletoId: number; // Сюди фронтенд передасть ID таблетки (наприклад, 5)
+  tabletoId: number;
 }
