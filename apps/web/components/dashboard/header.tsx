@@ -11,10 +11,12 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { Separator } from "@/components/ui/separator"
 
 const navItems = [
   { href: "/dashboard", label: "Дашборд" },
@@ -84,21 +86,46 @@ export function DashboardHeader() {
                   </SheetClose>
                 ))}
               </nav>
+              <Separator />
+              <SheetFooter className="p-3 pt-3">
+                <div className="flex items-center justify-between rounded-lg border border-border/70 bg-card/70 p-2">
+                  <span className="text-sm text-muted-foreground">Тема</span>
+                  <ModeToggle />
+                </div>
+                <SheetClose asChild>
+                  <Button variant="outline" className="w-full justify-start gap-2" asChild>
+                    <Link href="/profile">
+                      <Avatar className="size-7">
+                        <AvatarFallback>MK</AvatarFallback>
+                      </Avatar>
+                      Профіль
+                    </Link>
+                  </Button>
+                </SheetClose>
+                <form action={logoutAction}>
+                  <Button type="submit" variant="outline" className="w-full justify-start gap-2">
+                    <LogOut className="size-4" />
+                    Вийти
+                  </Button>
+                </form>
+              </SheetFooter>
             </SheetContent>
           </Sheet>
 
-          <ModeToggle />
-          <form action={logoutAction}>
-            <Button type="submit" variant="outline" size="sm" className="gap-1.5">
-              <LogOut className="size-4" />
-              Вийти
-            </Button>
-          </form>
-          <Link href="/profile">
-            <Avatar className="size-9">
-              <AvatarFallback>MK</AvatarFallback>
-            </Avatar>
-          </Link>
+          <div className="hidden items-center gap-3 md:flex">
+            <ModeToggle />
+            <form action={logoutAction}>
+              <Button type="submit" variant="outline" size="sm" className="gap-1.5">
+                <LogOut className="size-4" />
+                Вийти
+              </Button>
+            </form>
+            <Link href="/profile">
+              <Avatar className="size-9">
+                <AvatarFallback>MK</AvatarFallback>
+              </Avatar>
+            </Link>
+          </div>
         </div>
       </div>
     </header>
