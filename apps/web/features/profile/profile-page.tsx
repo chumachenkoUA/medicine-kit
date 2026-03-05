@@ -1,6 +1,6 @@
 import { cookies } from "next/headers"
 import { BellRing, CalendarClock, Mail, ShieldCheck } from "lucide-react"
-import { ACCESS_TOKEN_COOKIE } from "@/lib/config/api"
+import { ACCESS_TOKEN_COOKIE, API_BASE_URL } from "@/lib/config/api"
 
 import { NotificationSettings } from "@/components/profile/notification-settings"
 import { ProfileSettingsForm } from "@/components/profile/profile-settings-form"
@@ -14,6 +14,24 @@ interface TokenPayload {
   email?: string
 }
 
+interface ProfilePayload {
+  Name?: unknown
+  Surname?: unknown
+  Username?: unknown
+  Email?: unknown
+  name?: unknown
+  surname?: unknown
+  username?: unknown
+  email?: unknown
+}
+
+interface ProfileData {
+  name: string
+  surname: string
+  username: string
+  email: string
+}
+
 function parseJwtPayload(token: string): TokenPayload | null {
   try {
     const base64Payload = token.split(".")[1]
@@ -25,10 +43,52 @@ function parseJwtPayload(token: string): TokenPayload | null {
   }
 }
 
-function buildDisplayName(email?: string): string {
+function normalizeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function normalizeProfileData(payload: unknown): ProfileData | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const source = payload as ProfilePayload
+  const name = normalizeString(source.Name ?? source.name)
+  const surname = normalizeString(source.Surname ?? source.surname)
+  const username = normalizeString(source.Username ?? source.username)
+  const email = normalizeString(source.Email ?? source.email)
+
+  if (!name && !surname && !username && !email) return null
+
+  return { name, surname, username, email }
+}
+
+function buildDisplayName(profile: ProfileData | null, fallbackEmail?: string): string {
+  const fullName = [profile?.name ?? "", profile?.surname ?? ""].filter(Boolean).join(" ").trim()
+  if (fullName) return fullName
+  if (profile?.username) return profile.username
+
+  const email = profile?.email || fallbackEmail
   if (!email) return "Користувач"
   const local = email.split("@")[0]?.trim()
   return local || "Користувач"
+}
+
+async function fetchProfile(token: string): Promise<ProfileData | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    })
+
+    if (!response.ok) return null
+
+    const payload: unknown = await response.json()
+    return normalizeProfileData(payload)
+  } catch {
+    return null
+  }
 }
 
 function buildInitials(value: string): string {
@@ -44,10 +104,12 @@ function buildInitials(value: string): string {
 
 export async function ProfilePage() {
   const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value
-  const payload = token ? parseJwtPayload(token) : null
-  const email = payload?.email ?? ""
-  const displayName = buildDisplayName(email)
+  const tokenPayload = token ? parseJwtPayload(token) : null
+  const profile = token ? await fetchProfile(token) : null
+  const email = profile?.email || tokenPayload?.email || ""
+  const displayName = buildDisplayName(profile, tokenPayload?.email)
   const initials = buildInitials(displayName)
+  const username = profile?.username ?? ""
 
   return (
     <PageShell
@@ -67,6 +129,9 @@ export async function ProfilePage() {
                 </Avatar>
                 <div className="space-y-1">
                   <p className="text-lg font-semibold leading-none">{displayName}</p>
+                  {username ? (
+                    <p className="text-xs text-muted-foreground">@{username}</p>
+                  ) : null}
                   <p className="text-sm text-muted-foreground">{email || "Email не вказано"}</p>
                 </div>
               </div>

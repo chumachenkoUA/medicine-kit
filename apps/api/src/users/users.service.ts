@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { prisma } from '../lib/prisma';
 
+type UserIdLike = string | number | bigint;
+
 @Injectable()
 export class UsersService {
-  async create(data: any) {
+  private normalizeId(value: UserIdLike): bigint {
+    return typeof value === 'bigint' ? value : BigInt(value);
+  }
+
+  async create(data: CreateUserDto) {
     return prisma.users.create({ data:{
       Name: data.name,         // Було name, стало Name
         Surname: data.surname,   // Було surname, стало Surname
@@ -21,6 +27,29 @@ export class UsersService {
 
   async findOne(Email: string) {
     return prisma.users.findUnique({ where: { Email } });
+  }
+
+  async findOneById(id: UserIdLike | undefined) {
+    if (id == null) {
+      throw new NotFoundException('Користувача не знайдено.');
+    }
+
+    const user = await prisma.users.findUnique({
+      where: { Id: this.normalizeId(id) },
+      select: {
+        Id: true,
+        Name: true,
+        Surname: true,
+        Username: true,
+        Email: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Користувача не знайдено.');
+    }
+
+    return user;
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
