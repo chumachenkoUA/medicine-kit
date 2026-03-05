@@ -75,35 +75,6 @@ function patchPackageCount(
   })
 }
 
-function patchPackageCount(
-  source: MedicineDashboardItem[],
-  packageId: string,
-  nextCount: number
-): MedicineDashboardItem[] {
-  return source.map((medicine) => {
-    const packageIndex = medicine.packages.findIndex((pack) => pack.id === packageId)
-    if (packageIndex === -1) return medicine
-
-    const previousCount = medicine.packages[packageIndex]?.tabletsInPack ?? 0
-    const delta = nextCount - previousCount
-
-    const nextPackages = medicine.packages.map((pack) =>
-      pack.id === packageId ? { ...pack, tabletsInPack: nextCount } : pack
-    )
-
-    const nextStockCount = Math.max(0, medicine.stockCount + delta)
-    const nextStockCapacity = medicine.stockCapacity
-
-    return {
-      ...medicine,
-      packages: nextPackages,
-      stockCount: nextStockCount,
-      stockCapacity: nextStockCapacity,
-      stockLabel: `${nextStockCount} ${medicine.stockUnit}`,
-    }
-  })
-}
-
 interface MedicineInventoryPanelProps {
   medicines: MedicineDashboardItem[]
 }
@@ -214,10 +185,7 @@ export function MedicineInventoryPanel({ medicines }: MedicineInventoryPanelProp
       const searchable = `${pack.medicineName} ${pack.form} ${pack.description}`.toLowerCase()
       if (normalizedQuery && !searchable.includes(normalizedQuery)) return false
       if (normalizedEffect && !searchable.includes(normalizedEffect)) return false
-      if (expiredFilter === "expired" && !isExpiringSoon({ nearestExpiryAt: pack.expiresAt }, 0)) {
-        return false
-      }
-      return true
+      return !(expiredFilter === "expired" && !isExpiringSoon({nearestExpiryAt: pack.expiresAt}, 0));
     })
 
     const sorted = [...filtered]
