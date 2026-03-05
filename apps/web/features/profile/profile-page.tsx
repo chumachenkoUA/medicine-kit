@@ -7,7 +7,6 @@ import { ProfileSettingsForm } from "@/components/profile/profile-settings-form"
 import { PageShell } from "@/components/dashboard/page-shell"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
 interface TokenPayload {
@@ -140,9 +139,6 @@ export async function ProfilePage() {
                   <ShieldCheck className="size-3.5" />
                   Сесія активна
                 </Badge>
-                <Button variant="outline" size="sm">
-                  Змінити пароль
-                </Button>
               </div>
             </div>
 

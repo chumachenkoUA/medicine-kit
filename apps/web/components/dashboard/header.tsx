@@ -1,12 +1,20 @@
 "use client"
 
-import { LogOut, Pill } from "lucide-react"
+import { LogOut, Menu, Pill } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
 import { ModeToggle } from "@/components/mode-toggle"
 import { logoutAction } from "@/app/(auth)/actions"
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 
 const navItems = [
   { href: "/dashboard", label: "Дашборд" },
@@ -47,6 +55,38 @@ export function DashboardHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="md:hidden"
+                aria-label="Відкрити меню навігації"
+              >
+                <Menu className="size-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[85vw] max-w-xs p-0">
+              <SheetHeader className="border-b border-border/70">
+                <SheetTitle>Навігація</SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 p-3">
+                {navItems.map((item) => (
+                  <SheetClose asChild key={item.href}>
+                    <Button
+                      variant={isActive(item.href) ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                      asChild
+                    >
+                      <Link href={item.href}>{item.label}</Link>
+                    </Button>
+                  </SheetClose>
+                ))}
+              </nav>
+            </SheetContent>
+          </Sheet>
+
           <ModeToggle />
           <form action={logoutAction}>
             <Button type="submit" variant="outline" size="sm" className="gap-1.5">
@@ -60,20 +100,6 @@ export function DashboardHeader() {
             </Avatar>
           </Link>
         </div>
-
-        <nav className="flex w-full gap-2 overflow-x-auto pb-1 md:hidden">
-          {navItems.map((item) => (
-            <Button
-              key={item.href}
-              variant={isActive(item.href) ? "secondary" : "ghost"}
-              size="sm"
-              asChild
-              className="shrink-0"
-            >
-              <Link href={item.href}>{item.label}</Link>
-            </Button>
-          ))}
-        </nav>
       </div>
     </header>
   )
